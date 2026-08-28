@@ -1,0 +1,348 @@
+name: Promote KissKH to VUEO
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vueo-promote-kisskh
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout VUEO Providers
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify generated KissKH exists
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f generated/kisskh/provider.generated.js
+          test -f generated/kisskh/analysis.json
+
+          python3 -m json.tool \
+            generated/kisskh/analysis.json \
+            >/dev/null
+
+          node --check \
+            generated/kisskh/provider.generated.js
+
+      - name: Run deterministic KissKH test
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -f scripts/test-kisskh-v2.cjs ]; then
+            echo "::error::Missing scripts/test-kisskh-v2.cjs"
+            exit 1
+          fi
+
+          node scripts/test-kisskh-v2.cjs
+
+      - name: Run live KissKH smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -f scripts/live-kisskh-v2.cjs ]; then
+            echo "::error::Missing scripts/live-kisskh-v2.cjs"
+            exit 1
+          fi
+
+          node scripts/live-kisskh-v2.cjs
+
+      - name: Promote generated provider
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p providers
+
+          cp \
+            generated/kisskh/provider.generated.js \
+            providers/kisskh.js
+
+          node --check providers/kisskh.js
+
+      - name: Enable KissKH in manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          path = Path("manifest.json")
+
+          if not path.exists():
+              raise SystemExit("manifest.json not found")
+
+          data = json.loads(
+              path.read_text(encoding="utf-8")
+          )
+
+          scrapers = data.get("scrapers")
+
+          if not isinstance(scrapers, list):
+              raise SystemExit(
+                  "manifest.json does not contain a scrapers array"
+              )
+
+          target = None
+
+          for item in scrapers:
+              if not isinstance(item, dict):
+                  continue
+
+              provider_id = str(
+                  item.get("id", "")
+              ).strip().lower()
+
+              provider_name = str(
+                  item.get("name", "")
+              ).strip().lower()
+
+              filename = str(
+                  item.get("filename", "")
+              ).replace("\\", "/").strip().lower()
+
+              if (
+                  provider_id == "kisskh"
+                  or provider_name == "kisskh"
+                  or filename.endswith("/kisskh.js")
+                  or filename == "providers/kisskh.js"
+              ):
+                  target = item
+                  break
+
+          if target is None:
+              target = {
+                  "id": "kisskh",
+                  "name": "KissKH",
+                  "description": "KissKH streaming provider",
+                  "version": "1.0.0",
+                  "author": "VUEO",
+                  "supportedTypes": [
+                      "movie",
+                      "tv"
+                  ],
+                  "filename": "providers/kisskh.js",
+                  "enabled": True,
+                  "formats": [
+                      "m3u8",
+                      "mp4",
+                      "mpd"
+                  ],
+                  "contentLanguage": [
+                      "en",
+                      "ms",
+                      "id"
+                  ]
+              }
+              scrapers.append(target)
+
+          target["id"] = "kisskh"
+          target["name"] = "KissKH"
+          target["filename"] = "providers/kisskh.js"
+          target["enabled"] = True
+          target["supportedTypes"] = [
+              "movie",
+              "tv"
+          ]
+
+          existing_formats = target.get("formats")
+          if not isinstance(existing_formats, list):
+              existing_formats = []
+
+          required_formats = [
+              "m3u8",
+              "mp4",
+              "mpd"
+          ]
+
+          target["formats"] = list(
+              dict.fromkeys(
+                  existing_formats + required_formats
+              )
+          )
+
+          def bump_patch(value):
+              match = re.fullmatch(
+                  r"(\d+)\.(\d+)\.(\d+)",
+                  str(value or "")
+              )
+              if not match:
+                  return value
+
+              major, minor, patch = map(
+                  int,
+                  match.groups()
+              )
+              return f"{major}.{minor}.{patch + 1}"
+
+          old_provider_version = target.get(
+              "version",
+              "1.0.0"
+          )
+
+          target["version"] = bump_patch(
+              old_provider_version
+          ) or "1.0.0"
+
+          if "version" in data:
+              old_root_version = data.get(
+                  "version"
+              )
+              new_root_version = bump_patch(
+                  old_root_version
+              )
+              if new_root_version:
+                  data["version"] = new_root_version
+
+          path.write_text(
+              json.dumps(
+                  data,
+                  indent=2,
+                  ensure_ascii=False
+              ) + "\n",
+              encoding="utf-8"
+          )
+
+          print(
+              "KissKH enabled:"
+              f" {target['filename']}"
+              f" version={target['version']}"
+          )
+          PY
+
+      - name: Validate promoted provider and manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          node --check providers/kisskh.js
+
+          python3 -m json.tool \
+            manifest.json \
+            >/dev/null
+
+          python3 <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          matches = []
+
+          for item in manifest.get(
+              "scrapers",
+              []
+          ):
+              if not isinstance(item, dict):
+                  continue
+
+              if str(
+                  item.get("id", "")
+              ).lower() == "kisskh":
+                  matches.append(item)
+
+          if len(matches) != 1:
+              raise SystemExit(
+                  "Expected exactly one KissKH scraper, "
+                  f"found {len(matches)}"
+              )
+
+          item = matches[0]
+
+          assert item.get("enabled") is True
+          assert (
+              item.get("filename")
+              == "providers/kisskh.js"
+          )
+
+          types = set(
+              item.get(
+                  "supportedTypes",
+                  []
+              )
+          )
+
+          assert {
+              "movie",
+              "tv"
+          }.issubset(types)
+
+          provider = Path(
+              "providers/kisskh.js"
+          )
+
+          generated = Path(
+              "generated/kisskh/provider.generated.js"
+          )
+
+          assert provider.read_bytes() == generated.read_bytes()
+
+          print(
+              "Promoted KissKH validation passed."
+          )
+          PY
+
+      - name: Commit and push KissKH
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git config user.name \
+            "github-actions[bot]"
+
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            providers/kisskh.js \
+            manifest.json
+
+          git commit -m \
+            "Promote KissKH generated provider"
+
+          git push origin \
+            "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## KissKH promotion"
+            echo
+            echo "If this workflow is green:"
+            echo
+            echo "- generated KissKH passed syntax validation"
+            echo "- deterministic converter test passed"
+            echo "- live KissKH smoke test returned stream data"
+            echo "- providers/kisskh.js was promoted"
+            echo "- KissKH was enabled in manifest.json"
+            echo "- changes were committed and pushed"
+            echo
+            echo "Next: refresh Content Manager in VUEO and run Provider Health."
+          } >> "$GITHUB_STEP_SUMMARY"

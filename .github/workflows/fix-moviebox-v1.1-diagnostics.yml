@@ -1,0 +1,408 @@
+name: Fix MovieBox v1.1 Diagnostics
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vueo-moviebox-v1-1
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout VUEO Providers
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify target repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f manifest.json
+          test -f providers/moviebox.js
+
+      - name: Apply MovieBox v1.1
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          import base64
+          import io
+          import tarfile
+          from pathlib import Path
+
+          payload = (
+              "H4sIAKggkWoC/+09a3Pbtpb9rF+B8HYaKZEpybHzUOJk3NT3Jrdxko2d9u7YbkJJsMWYIlWSsuPGntkfsb9wf8meg/eDomQ37d6d"
+              "ijOJKeIAOAAODs4LwDTPzuIRzYvOBF7oIPscfiq++bpPF577GxvsLzzO3/sP1nsP5Df+vbfeu7/5Del+8yc8s6KMcqj+m7/m0+mQ"
+              "XRz477PPZCpogRxnOfnp/c6bBqSe9cIeGcXRSZoVZTwkUToiOS2y5AwAczqN4jxEuHeztIwnlAyzESWzghbkZzog229fFizL2zyb"
+              "xAUkj6M4LUiWJhdho3EW5WT3zU8vd75/868Pr7d3d8gWCSQ+wWM7/aedd3sv37xGEMAp7EK6DfBi8wPUh+njspwW/U5nvLkWTeMw"
+              "ylKaZ9kkHGYTt9S9/Xc727sfvt/e27Fz1ub6eef7Dy/e7O3vQZ6DBtH51CyajoN2dcLpnIT0xE44jpPJAOsvs2nQOHJb+36bbCH4"
+              "bvZbnCRRZzPskuarOJ19fky201GexSPS22yR7ek0oTAWP8ZlZ/Peg/DefRKQu5iz+eOL/d1XbZLEp5T8gw5PsxZ5PoaBop3evYdQ"
+              "3G42iBNK9qLjKI9FZq/Xn7/Z3X3z+sOLne0fYICgP75g2dvDIZ2WQZ8EEdQfD6MyztLOpyJLeSN5+tqrKD2ZRScUAWm69n6vTdPH"
+              "v251w0cc7F9r7+ivM1pwSA4lU54nMU3LtZfpcYYJXw4DJMDfYNQOg/5hsF3EUefHWZREH17NJtNZfhhc8azvC5qvbZ9AZshn9Gfj"
+              "ym3b/u4P33/Yf7m78+b9/oddbFyvBxzKJaGd7XfPX9hwm+se2NtX2/9pA93f9ICeb7/dByK34dbvI1zjeJYOsRvJZPA6O2+2WE/n"
+              "tJzlKfkhKmmYZufkmXoFgD6BfFdWzv08GtImML0T2ibwp5wVbTKiZRQn7Hde0tF2yctGzGgSTQs6AixUItTRlCismXlYdTxbEqeU"
+              "0Sf094Gc0UcHyEiOCKt9C6iQvzFqBDiBjkyAV5HSlEg8A6AJB5CfYOSDloTj7WBgCCN+MhBEbJilwLhomGQnTUSw5XbOTp5nuewc"
+              "ntvq5ZSeEw5zzZbhl70yj9MTiePlJQmO4YWOghYAOagMs+nFCxrhwtwcRAVgQz+XeaSHJZuVONWusFlvBp/osAxP6QUHxrK/XLVC"
+              "YOM70XDcVKU2AYQXQbCAA/h5BKVgHvaOhV213CJZzdctk2VyChWdCFB2Y49pORzvQ46f43K8D3MYIJqzHOgxmyIAEGjJv+4W3nCI"
+              "hcVASKxObYDCRkjksNcKWpYJI+bjKCnoY5WA5edI47SUCOgCZQmExMekeUsUor8So9wyn4li8eEYNDXZBKIhJDouoUIkC9U0eA8m"
+              "RdBqyfxX7O+V2XrgAviN9ZjVRXJ8yjFN7b6YQip1miA/Yy71I8xOzTaVsBKcGxQfvNjff8swVqXCRFOZxYSFuTZLT4H7pF5D1LCp"
+              "PCWMeVNA+bhj6s27fpjQKJdjyYa3ZY4LIxFehdfdGgWKLf/DcGC0watwcGjJSeNNk3/CCrqaJn+taYJS0/xpgql/8DRhVfx/mSYj"
+              "iirIi3KSNM+iZEatqSDWYJbAlmC2+BISgiaToGDU+S6aTB93Ttok+M5P+3WWlSzxdnDbS/zbvUePL7/72+f1Bzz/bT9/wnMHT/yk"
+              "E5H0NHDaw1bSYbkLYkNzDK1qE7XiMvmsGEZT1qnwWZd3EN65++yXb79cNVuXB4dHh4dHrPTDw2+/47IQ5p1GJUwvmBVciSGMjN/R"
+              "k53P06bo6dtPJlDxwS9Pj+42n/VBQ5zSvLy4TKMJbW0dQHmHt49uozgm0Lgr84k0lhPkrhKkbQnfPPiFv9xtyRLaIlsQB+yt1V6M"
+              "z8JSGdRtjdJyDVCo+0jB/0eMtaCC3MQejKHruo/hzxPVmWFC05NyjB/vgr5g8tVJBPwIcuAwhuxHU+Y6iI8EdePs4YDffcdzHPSO"
+              "9DQShGxQuYIJgbgnilHg1Ghoyg8CR8KESZfuT0aD/RgmpTlVOKOHj4CpO5mq58xhcZdRF5EpEhH4JUtif+18okWQ/c7B5eHa4Wy9"
+              "27vH/t84gm8wXPtjys0TqNREKKeGdy5RKQvvtL7txGqA9PjYlYu2s7rt5gvWhh2AM2sExTdL+PFy1CYTCsL8/sXU6A+h5EA7hOIj"
+              "p1AJYPBV8BWVU/QTqO6vsnOaPwfMYX3c2toiQXnGsX2mX2E1YFaAgCGNxcKaJbUnaQ44Pz9H1s8AR4Mwy086gaBthoRQNdRHmuLQ"
+              "vX/38nk2gXUEZkpTYMnb2ZJaU/AsEVr4FlPBORZSUwwQOoDBZV2AL/GIKTi8FFyNWf38G7woLdIagkoZn1WPyzN7kRQOE3ycjaBP"
+              "/rGzH8ghHnNlqG8sJ8rGoL7AN5ToOoxNmnaHz/jl7mf36yThtob2nc4d9vZQ1be0iUIAz7Up2Ism+zPPvIBqoLu6I+ImC8mjc0EY"
+              "pGJlCLKTPiN2UIkvL+eDlecxsh0JK8QlLvNE55rZKFawH52oaonJvzpPWDqy2jtPmweHxeHe0Z1nrSeHHfb9aSdWizZDXRcH3E2+"
+              "A/OC6WD+6jN+xXuuYWECRTisCzE2WiBqu8WhVS90Ps0KkCfJJJvAIF0i200FJ/h1Fud0dBnBeBcFsLwUJlgnBu2kQHEESuGMRXcL"
+              "l/mkuUATAZ8q+vdEcBZYG04oGcUjkmYljMc0A6EwIrMiGgCKO+lJEhdj3rxA5G55rb8AIQkan86S5LH1cVesKiy/HJbDZrP36HK9"
+              "2zocfVm/OgRuafaRyqbbJIqfRnlBX6albpWCPegeGfJFs8UliqClG9zr2thXcX935bjjY9pWS4zFz43+kMypUdXxQXaq31nFjDf9"
+              "c+/NaxC/kQPGxxdiYJVwQHinMNMRvrAs7EvfbKNgbQ3RyIaxIn8xm9znf9pG5/bZ/23F5MRK0WdMkzeOi7PhkA3hHPG6vunCoqR+"
+              "s6xbgdlM9glnH3sJJ0DzSJ3PnN99uabx2mt7wJh2snTx0yxDFS3Wxjgd0c9vjo35M8ecxpooKYstot3KCclqseikcqLaXXaz7mgo"
+              "KnfVjzTLJ1ES/0Y9uWqRCmLJCq56wOZalI482evgl2jtt+7aoyNHBFssnNlKUwla1vZsFGdvaRol5cU8ibACfewGJIHO4WAMgxof"
+              "Dmzu2ZJN7z00QEezwYCO5sI+NCyGjhG7GGY5fQ6dEQNzpc24pBMU2jiv5RizpQwTmOqOL2ExYzZNEFnUJ8EDvpjTeO0RPI+l8Mw0"
+              "rM9TyEdH+1zUkxWFWtiTch1QzTpQSk8Kh7DqzqJE5FOc1cRmnwlMvW7LzoJ83qYjA18lekb5CS19UIWgDc56jakrDdFBJnpbW1Y7"
+              "ZafwTKDHbDDL/hWhCSxdvHeL19Fro4yWnWdti9zbVP2oq2NVcdS9Snrrm04tLJ1nNClarDxYFp/nrLwKiIbmErqWXremFsmVJIpP"
+              "ocekFCGqkSA8Bwepqui+2RotwvFSfs7yESreoswCxNKyiZM0PI4TkM2a32cZyjktvdjz+mRGge8yGbMzmifRVNXGipDgep05h8+e"
+              "omlUqhrOAZ9ucXcPW7OE0tuwe8CsjkOIwp8RECnGYZ7N0lGzKfHrVGRokTtkY1OKA8LDpGhK0TpbqoGLs3mSU+iAgqIjzJSdMe0/"
+              "q8UcwdW83GEB2gJtdttkQ62AQsoxFz9d8pbBIBAn3Z+qUziR+wQIMiufU7K0ll5HWW9Fg0LXtObWg1X3nHVR1fnQMQqoOVrB+B1W"
+              "I+iA5XD4MHTUsLQZceFyYq60pKdMeeYgyIAPjlogqk4N6sMkhxcrgyIk9dn/bbNh/QUrgSVUFVluGqujNhk4tQ1C0SskCkVr+fLe"
+              "UKoRNkPQJTaCf0C5mOd8QjY3nUKluG6aYlQ2x74f50W5N2NayPEsAQ5UnN7Mpr+ULf84TkHrYCldUwFk1arJp7kBNwVje7RGx3Cp"
+              "0NP+IC9BBQo1xn/tS51MEyDznckUqFvXpDoA1wSRycYKGYqCeorsrKprfqdxvao5Qnpl1fkeV/xuyL7wq+nZDQzprbpdHsD8Zixo"
+              "iG4KL9NO0RRitIyVaQ+L6gHTsWDiNw9eOUaqpHFh+9gD9Ifjl8h8DH+J4rz4SfJafA+Z0i4+bOd5dBHGBfvbVMkhY2WmgCFmpgPh"
+              "Tv6DI5eJImpS8Wn6zHOu6XEaXSRZhAmOasvROaUXuE73iS0Pcg6KBgkQVMUPmr9lv9c3+AdDOO0z0UZwQUv3DDjmQpGS5kH+49cZ"
+              "zS+qtG5HNhXVKZWypQygXBDQnglJB0k0oAmo5C82t9++VErcLE+0FdCNB9O6b9A5p8eUjtbGm9E0XhscH3dEUztWYwxzoxmI4ddg"
+              "xz5pQ4g5q4Ln3E+xht1ZGRBlzA6h5KplDpB9kRVlvzJeTS3pR+EwS6HEpm1eVEFqzko7hhI9OU+jLLoYoYxmaOH6F2aRftY/7Bx2"
+              "HFsNgAl5NAxasMCZCWX2fjqV6q3uKmvoCKvVGDFrzNiAndPBvEFbNGxLDJw9dMsMXtuGfwfI5jQP+qIlaJA3IK7Uu9EFepSNPr+S"
+              "bM2ZFrAkKDm+cAbWVquk5b2CmzKhjAfW7fnsxSaMyrAD7f7m6osy4rtdqIz5b4EQrc5SYyWKEL9NkEE2uuhLPqdnSdufiH4I3hq5"
+              "11XmyHqfudYOChm5VLFkPLaguezL4+IcMdhoAJeI7e5g/E+TwWO9IjqmPYPJriFhWL2n6n9GAmbyDdBQSXFttOACzMl9M7yb2ey2"
+              "ZhjGpzFEGRh7kzKuDdaUlVpfmSeLS+I88E0ACZn4rgOMtSmjrJfmLBeqLEMncfL0bRM0cei6sqOFLMTLtmUgR2z3pBaPWxKxgr/i"
+              "XNPsZXu85ByXCr/4YAFxvtYnVrstCKH3WH2s8dRCUb0R+brU5tqVr0FZvgW6xgrtEVZd6jwL9ZJEUDHSSpY0ND/JBR3lTAvojk/P"
+              "40RVXj0QmGeJYtQy1gg+yUgjeJUmQj1m3ogF3gLoD1SQZjyKAHpKh/qLsg24wuoq3VHzfF1+1XUVsYgJmwjqJcNKN5jr+3BwsBw/"
+              "ijplb+pZakqERJmFLWD+0bAZm1l4BO/bqBxbdC2o0SlCAwtr+RKuJF5ElT4TDUDTmpUU6qLR5H2euGZ6FjhQZaQ3wyKU4gPQyqin"
+              "Ag0C4WORVk8PyIDx1R+Afrwg9KTIZvmQ/scsAknR9zPA+jvfzWBE0fAZCNDC5Sn9vM313v3uZW9jA/7rPuxePljvXm4+uH+5CR82"
+              "4Pc9SF3fYBCtTmx0v8CWF/9MmwhlfA2z01eE1EfTnxBLFGxfpgVNi7iMQRnOBp/aBMOMCsMlAR+xNejyy44J/rqFvoOMz8Y62xG2"
+              "HMOxoW/M4GzI2ZobksRqr4lHOo9SLsKI3mbwGIlk+6KkQUXW8InX8AlqQBxUBZ+sCniLRckId/DpqCoghiNhrkwyTnzw6UDkO3Lt"
+              "IzaB8Y6q9MLtMVp7nY1oM4X/2kzExphXJqa3ySlQth4fBAGkWIHOYBwcWYZnMYIiwxbqv9jQwOzeUZwj69uqmLWYzwq74LCeVnZw"
+              "ZDFA+VVCjZXW0Fb5WMP6qoVyLEAGx1bJ38fYQZAX229q0QJp+elXPkn7zpwV2EooLIQXxZG1u8o2oLCWm72UxEX5hu1mODgSPYIw"
+              "FXYvWFoSg1B0RvFmacG8HJ8KTKsWltd2lE9birD6UDZVixPOKuWwcYFWPd04U1/TzXvGyX3SkcLAHLZjNH5ENeYHAYwuRm8dg3zA"
+              "wrnyIf4Bnf4CSg2kqt7yfBsKG0d9jM4FNRiBQQuRctEiwryjFldmSpyxWG1XtdZJboqgUvfzmMYn49JUv48qJEF3TlXNqvnzis+s"
+              "m7Q7iEc8rA4H9uUoOKoyDYhpamqQi6vyK8PqeFFYJdJgYNpmMFjM4gQWL3hv6vaSIZg6icUaNF0YIWg+mKYqXbbDRiQjsXwLfLo4"
+              "/MJcEBl/qd+mxEtis595z0dy95Oxbol5KoAqGLxVzLy5yjmWo3nKHLbiqRoWTmfFuGmboaoosp4qq3j+fM5vjLnEzk6qGHZ/TFkX"
+              "W2Puw6jG2+V7Q2+qY/NcCY5ybpKG7s1/szVBIbbILzCYASJvgTsLiyIiKXERugV7pVGRpfhGp3EBjWloUdpQPbZMuz6q3b56ojzz"
+              "QmTzIbQTPgi0V9RItyUmbQB128o73DD1Bp1iGnVw83mGTUZvBN8XXahwZqMxMmyZByLPC3a2PfueRidjOkVh37EYZl5ph9cVqDT+"
+              "e49uLY6t5uOhY6tF3p3pEnnFCBqZMTB7izIPgaMIZvkIqIIRCFqRiqa0J1lbRKcmn9RK5Ghk+QCMCAQ2JirqgJeglD+e54kXfSfA"
+              "GN9iME6wAdan0HssPlQ5NPhcqfBfSHYOGZ2dpNPKzaTYLRhbyzkxcwFYc0ab3lQQ16LJNNcNp20EW/OJTQHLTdF+8Jiaf02leQp8"
+              "mN4JK3TPiYJhwWnT6xQomlVb4h/ONbASJBNUZeeTcYXDEWXVSnejbcPxjTYBEZvKqfGJW6uh//QnhhX7zN6EYlvnpOTeGA4938l2"
+              "Y0+MCcNWAdytXbEwVC1VBsFLE7R+p1PP0GdvO6nwxdV54tjQmLDPrDHR9frMT08SM/93BV2UUXHclp2TTpfMSadOzjmGvYoSDPK+"
+              "nr9ssaPM3PWyjE9zKa+m69es3j0jUlwfZ5uZ2XCMY3i/07njKFqQ5U0en8RpUCWjWk5RQcYWwJWpidR6+dwTNK7t42NxHVtGfSLy"
+              "QwdtNGz/Q/X3vrA42Q4lHbZR42IRbMx3sZAq751px5biFEiwa1hV4KoClR4PYy/GMu4ttkYxwbgwFSwtx+Nn8eaJ1guFa8IGIOQq"
+              "b9H2VJxK5cbpj923G0ElwbT+EFzHyQ3xfPFq78/EcxQV45sh+sP23ovFmHLhhabq0JF5DfCiinmCPTEMiVNEvnIojCNwNUis9UAn"
+              "23aLL04DOQfWgY4egfvlVYS7yW2j1uerRa766nkt+0V41Jd213uBMEyM4YVxYcYu2AUdR8U7ymE876s8iYYRuIZreYUk8SQGblJb"
+              "gIC5mQ/easPv9sRXm0nqjCSCFUn7dvH1XOnV1FDvSK8c87+aA91Z5G/uPudDW+c+NxSKOc7zKEkIQg2i4alQWnh7KO7llFTzO9zo"
+              "LgpLVriUe9wqu9Y57kr6FqOx+9NSim7oxQaRn3n55dbq5jBix7NobZv7fZVCzU/3ElUKYG2m0N0pksIkSl9HE2ouJUYSq3Neejo/"
+              "37zi6qqx3Srck93QRxXUbPn7wLYwrVUcqcAIXrjNrUlouvY7vzQnxeWkiC4n0UWruXZ5WFx+2+rwvXYis8C7M4hgFYhABQGCmV3K"
+              "XxH8KmLMDy+XIlF+Ta2S/DCAYBcBA8v3JfGi6SXQ0AKcKN8VvagasXm6uqJ4dBmn+G+59gMsaHfYZPW2sJkvFaRn5azxSj/nVCK8"
+              "FTdwPy/wqWY38afyTFmdzVzhzbMuMHXfwPUJXclMIDd1corpV7BzKjCSEV/QD6sdnP6eZVHpLd7xmq+o79xJ5Fg95Sj7Y8qy+Rv4"
+              "Z3+8Q3e+F3dm+pt8lydz/Vi2CWBgX8XtCOWwMcDjO8VfdpqGJcdb1SJn/lpVY1lmtfI3cnkbBc/lWO+eYVYeNeS+fZkPb8PZaHJL"
+              "J0nmY3wK45HPYcQmr1DusTng5wSpmKCvY5c2jb7WojsvjK0hpj1HgbuwjYrMNik47nl0K9CgIl10jJGADjb5WSrWrYqzcqp3ftTs"
+              "+hDsQnl6nnEU6nw1HEK7aOqdULJrNLxvF13GJlppm1zCLrnQJnnN03e+wnYYbQysOjS5U7EbpvLsHP+g3MYCIyDz1osZq1YYn303"
+              "lrENVlsGuV3QWWgcy0mjYgeBxErkdDwJlnCsrTGSpVn2zLmS9eNaxZl7/oXoOrOd/7KevnqzU1nYuyPuWvqzbJVnGapomGMYumXg"
+              "ZNuFbrmCthNsgkYeI7MRXFNlZHAsRoaVwSuoYluqZyxSkpCrkUl+U6mUDbNZWtpbKJbWtWSOm5wg4yFVnMbT6Y1OkWksY3q4zsky"
+              "tvTrqJEiKIXFdAtOqzXIX63gNDsIpWEaf5hfk68zIo/S1a6R1Yhbu0l2oCyj3TgLJP5PtwgGNLt6x8aPtsrzq4y5ssBkIXdJMPX0"
+              "k2B7VmZuaDZDB93IXodakeVcIa9qhqHjVkQRzxUDjLLsTnKkAvVZBd206musjnUPJ/dmDwP7dA9ekRHqnhQLIIxCKlRDlurrpQ4e"
+              "09GCStCyP78Slrq4ko1FLVEQVQ2BRI94Ip94TmhpBFyI0xS/SowFP2WxYZier3PSonXWonvaohNiIK7AqAwzOAOpB9rJWLR3K4WO"
+              "IuANt85I1GnmSYlmfALrlS3jmHj+RbTODFvgvWaCik/W/pKqcAWhQoz2REDHljYbaZOddyomN9SqwSTyvDJP1rK3rhtLU/UGd7FU"
+              "uYWYp9L5CLNkqb/Ya8S8wB+uQhrZ2vZHZx9eKehU7OwTtMpjJji9Gkd/udhPWViGaZzW+pGWOQ0waVUVR6LoQ+/4uTPmh/nnl1hy"
+              "iK0W26vPQK5wWN2Ac+u1GvjIhI8YfLVj+coRdrUFR1qNfbegsbxYDbh1q5Cao5anDrpHiIPhdjdH3ZXdHboxd9M3KmMFpNhc2IE5"
+              "rtjuxNWJtukxWqKRlb5PtXhW+z5V8lfyferylvd96kbayklVC33xywkjtiS2xw2/drtpaKzp2/cE2aYefuSi492y7xVytxoHxN9+"
+              "LLCrCIrWXVYdFl2dVS4mcsEBDdcJ2ijZCRu+0OV48v2zbxecOtueF+xDgsrwHaWTe8FASrzl4WdedDchBjOrgTJ5ng4Mbs0NJJqH"
+              "CMtbj4VzcIUVSmTqyOj1la/mhKl0+fPdezzQ1fdWz/HuoYLHstj+XuXfUxcE4FHmUSx8fOJY2PfvXhVBw2O2aj5XuDNt4cVVMInc"
+              "bMLdelZjFjswnZBb88idenWTbdkUp2hu1R662VikOzqa4xwl2+uG+aeiSsTqVNBOh/ygrz/j16HRJB7QPCppciEuKMArzUhEeE38"
+              "3NJQZser1HASJ+WYDCPgrbD4AOnlx4A1OR/Hw7G+UY1fG8SLkfnjtCiBBZDsGC9cAzkAd1jjDWpQIcx9mgNeLJREumobFWeiCuVZ"
+              "rD7CFzPJRjMgNbYHdQa6wDHSYMA9IDwtxNOK87IQUrr9UVz2RQzJv2+8N9hkMs4/PEmyQZSEGgIK0D8Qv29Wz5/7FMM8npZFB72c"
+              "a3KVWkMqD4df6yLI+vsfe/cfrN937n+8t7HRW93/+Gc8eCVaSaICBAkUacVh6M0A/Wl9/pmdDz9M4Af5e3RK38lF64u4UQ1ExWEJ"
+              "yx6e1iOvlJPMvxzHRYgJGLgOfx7rr+ImnC151Zvwe+MZut0u6YvPRobsFMVVIyuaxgAUD5I3vj7BoGBlruB359S71BSS2rPGb6aq"
+              "z2YojMBKjZYauwWNJU0BGMuZeya5QsRQMpFrJ7QUEg6LypKxufiZq9cVCcKs66Q0BA9mehMeCqkWbfOaJN5yeWfSln170nyzmgov"
+              "mn9lBd9gtbnZFVd2zDtGYk5n47GXJhFq6ef2E7yV4OkTFJaf3jZke35jDJE3v2zpOxKIBSavkwn+jruGyfNkNiDN3qNHj1rkf/7r"
+              "v4l/FQlp4v0NrcCprcMweMIuoXh623XI1xnqlui+8qzTu/fo/r9v530PS/kpyiffg8DShOn5EO+I/PfoPE57j9jztXswED3Ib734"
+              "p3nXRBiGT8RtGKJhwe9pWMWdth2tywaLTjic026bjdh7kA21NzMclUo74muI4PJCQheAnCPq81skcFzsnyltAGG0KdqkoECeMn2T"
+              "sdHqGdobbe2ZxQb1ncMHECkvgPaLp2oSHVrRR7tyb/2ep1F7p2iuV0GIqyLsJlcBGkdSAzjOqrVub229WwmsYwAAdiCKXhtA0R7w"
+              "lRcRvKi5k8FSze3VNVcz2CUaixx4rddd620ubuwxFrw2xIJrm3rkbyK/1lRcfCSlmGVPfxdzWYaA/8CmsPDh6oaYssj1eIVh/aw8"
+              "fMq5d9s8aKoi+G5OT9b2ZVVvGhsBDhzK8ScEHqsgLClrDyrnoDxigW1W8pOdI0/1PgDRB8NRChp2hMcd8z3xWA1z4vllGX5nqA/g"
+              "3rqkb8/xI8e0mFSZFfHcrKqNgfMRxBzcp1pneUNnJdKsg4PegdJndmc7Wewv6XPTduVZqlfVx8V9xemmyeP3Trjfu4zLaI0567gj"
+              "9V9vcn7FDpMhTe6EcmkNw0zVpe5OAgsE1SHeLgSzzFfSJE3Ds7KsJcVqPCZFDR48on15LCbFDbGIRzVYGAHny6MSj26IynFeg8rf"
+              "c5oOrzMux3kFGtdbl+tI1CfQqzbZ6G7I+9XRjMGkT2khZhKoMnmEYUcmFDok8VPB7B9KTz6jOajqz7PJJEub1h4jbi0Js1MnOl8C"
+              "8aMvOBBFh1HT2VJD1vlEtGAaBvvBmyYsTxPj1FMdDlubU3u2A8mpF+XqufXBAjNdMqNZ3XTDywTd5CIo/FwHplvraLm2iawhdx+1"
+              "Gw6rtdjsNVAJhWOshovP5eDzT7RxWbeJy4jS6U5lE11fVc31KQYvZwcnyxhJPyaTRRUIL5xk1B7DreI5ghs25LTl3gU5f+BDaEcD"
+              "QQ40+kiCYPE34o5fdUKVCJ5F5DwHvb2Zr3ISikXMpxNPuxVbZp+Sror6ALHD8vosLgXHxFhQv65+bmnWrLeQipTGbMnfx0Cc1uZI"
+              "9r2CFkRKWCGWOMeocC3PiJnVdz0Z4oKePgpDIYA5E4voJlRXHhjR7b4Sp9QPb3iWrwDPE+ni0SDdxaVag64LliaNKl5Tz22Wwtst"
+              "fg7rUZ21R5dpy9eoaWd6vZocGVRMlK8w6oKOJZfxWAwuiGgd1bd/nql3ZYDZNAO4fh+r4dOzPPtT5yY3OC0/Nzl6cweLJ9fMmnWc"
+              "NZvXGf/aIo0xr7JNXaP8G0yY9T+hmp363lqChoWFWlGxuVoS60RHtd1ERLTJw30rL1DiAQEoJPthKjvi7kcy0qEOGIQwy2lVDErb"
+              "q8g7E8HrTiN414ruaFXR+3KXwdpylBcoUz/PlcYMg5slNEyyEzUC6vh6Fu4xyYanpGROtCk2axQGbtm1ETCyBmp2uxMCA40bnnoB"
+              "MPbXPv/aMJoJZIQHKoCGFZfNnroC6/r+/yQ+o/83/v/u+r3Ne57/v9dd+f//PP//DRRinlFH7KO5PkzFBUI88RwnxSjjN8dXX1j4"
+              "oS3ip7QfqvbOQA5s23l9bvYKiJnYc7iYZKeUTWIn8DPA6+xGbPN7dFxCF6w/BCSgASMz+s6xL4Kq/hAoVc23hrJHYCAaKlJz+fvy"
+              "ahD+kl3YOGrVyil6h3G17UHtRrIsDp71cM4SwTuUdZ51GAkvLHBMNHzw2XkvOkia3XbZqOC2TghEw7VG0SSaAsvdLUx7tCY2siZp"
+              "0AxhxCqf43a6vm/D9SIeGaa29ZJHHLMEdiCIaeJSMb88uSLyl0f18mRzO4Ewdr9H+9itWzzdCSmGZLG91ja/S/CKS7KkXcBrr3t1"
+              "IS9Bh7p7rk4HwL6xVy9CXd9KVyWbrDfkzEHbQG2QaMUCWbM8Vi2OemlkdOgti9dbFP9K8X/5ULH2zrud7R92d8LJ6OvWsWD9792/"
+              "78b/9e5vbqzW/z/j+ZteJ1mY8lspCeCq2Wjsj2M8gOosLtihF9lwVlAW6gysNCEjSBhSqTMAZJSOdChzTpM4GsTIHcNG4/k4Sk8o"
+              "sLVGLyQY+0Ne7O++Uhfiyft7SZwOc3T/j8gxrKlkUy7GpMxIryd/hY31kDyf5TlNS92CF5vkp3VhpiOADqwqUA4uarOTMflYYZn7"
+              "GDbuheQVPYmGF+ScDsgkRj6CbZ5EcYqXAEVJQhN0PiYsZl+ULi9gbGyE5K2M5wfck9kIOuij1nI/tuWvParfd6b4zi1IH1m3weoO"
+              "6pQ4/Qt676PQMwHDTaOKiG3kgBrEaobFjJOCl/ERHawf9baCYhxNadEWeGGAiTjSRu7OmcDaGjbuhyxAayi6E3oRD8+Qx2zRdDTN"
+              "4hRjdsiMjQswZmEibhNmBmaVayOx3lYRNh6EZvQ8j26nvIujnAp5DgqNWfwY1Af9fEGKzKHGFzp6nofA8/4you3NKHkWG//xdUb4"
+              "jpAC+rDhYsHqB2r8iArlR7L2FLqUDS1/x1Hgb6IfxGeB0MdGY5tJi2IKDOg4OouzWY69BBQKSylIlW1TneZNZRdSQysG2PYk+gzo"
+              "s3EF6oavZhQ/62d+PAUe+cqvpRrCzIBeXa1bq2f1rJ7Vs3pWz+pZPatn9aye1bN6Vs/qWT2rZ/WsntWzelbP6lk9q2f1rJ7Vs3pW"
+              "z+pZPatn9aye1bN6Vs9f+flf6n4pTADIAAA="
+          )
+
+          archive = base64.b64decode(payload)
+
+          with tarfile.open(
+              fileobj=io.BytesIO(archive),
+              mode="r:gz",
+          ) as tf:
+              for member in tf.getmembers():
+                  target = Path(member.name)
+
+                  if (
+                      target.is_absolute()
+                      or ".." in target.parts
+                      or str(target).startswith(".github/")
+                  ):
+                      raise SystemExit(
+                          f"Unsafe patch path: {member.name}"
+                      )
+
+              tf.extractall(".")
+
+          print("Applied MovieBox v1.1 provider and tests.")
+          PY
+
+      - name: Update manifest and port status
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          path = Path("manifest.json")
+          manifest = json.loads(
+              path.read_text(encoding="utf-8")
+          )
+
+          if isinstance(manifest.get("scrapers"), list):
+              key = "scrapers"
+          elif isinstance(manifest.get("providers"), list):
+              key = "providers"
+          else:
+              raise SystemExit(
+                  "manifest.json has no scrapers/providers list"
+              )
+
+          moviebox = next(
+              (
+                  item
+                  for item in manifest[key]
+                  if str(item.get("id", "")).lower()
+                  == "moviebox"
+              ),
+              None,
+          )
+
+          if moviebox is None:
+              raise SystemExit(
+                  "MovieBox is missing from manifest.json"
+              )
+
+          moviebox.update(
+              {
+                  "version": "1.1.0",
+                  "enabled": True,
+                  "filename": "providers/moviebox.js",
+                  "description":
+                      "MovieBox v1.1 with H5 V2 resolver, "
+                      "multi-host playback and device diagnostics.",
+                  "supportedTypes": ["movie", "tv"],
+                  "contentLanguage": ["en", "id", "ms"],
+                  "supportsExternalPlayer": True,
+              }
+          )
+
+          manifest["version"] = "0.2.1"
+
+          path.write_text(
+              json.dumps(
+                  manifest,
+                  indent=2,
+                  ensure_ascii=False,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+
+          status = Path("PORTING_STATUS.md")
+
+          if status.exists():
+              text = status.read_text(
+                  encoding="utf-8"
+              )
+
+              replacement = (
+                  "| MovieBox | `moviebox` | "
+                  "v1.1 diagnostic resolver | Enabled |"
+              )
+
+              pattern = re.compile(
+                  r"^\|\s*MovieBox\s*\|.*$",
+                  re.MULTILINE,
+              )
+
+              if pattern.search(text):
+                  text = pattern.sub(
+                      replacement,
+                      text,
+                      count=1,
+                  )
+              else:
+                  text += "\n" + replacement + "\n"
+
+              status.write_text(
+                  text,
+                  encoding="utf-8",
+              )
+
+          print("Manifest updated to MovieBox 1.1.0.")
+          PY
+
+      - name: Static validation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          node --check providers/moviebox.js
+          node --check scripts/test-moviebox-v1.1.cjs
+          node --check scripts/live-moviebox-v1.1.cjs
+          python3 -m json.tool manifest.json >/dev/null
+
+          grep -Fq             'MOVIEBOX_TMDB_TIMEOUT_MS = 11000'             providers/moviebox.js
+
+          grep -Fq             'https://h5-api.aoneroom.com'             providers/moviebox.js
+
+          grep -Fq             'https://h5.aoneroom.com'             providers/moviebox.js
+
+          grep -Fq             'detailPath='             providers/moviebox.js
+
+          grep -Fq             '[MovieBox][diag] stage='             providers/moviebox.js
+
+          if grep -Eq '\basync\b|\bawait\b'             providers/moviebox.js; then
+            echo "::error::Runtime provider must remain Promise based."
+            exit 1
+          fi
+
+          python3 <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+
+          items = (
+              manifest.get("scrapers")
+              or manifest.get("providers")
+              or []
+          )
+
+          moviebox = next(
+              (
+                  item
+                  for item in items
+                  if item.get("id") == "moviebox"
+              ),
+              None,
+          )
+
+          assert moviebox is not None
+          assert moviebox.get("version") == "1.1.0"
+          assert moviebox.get("enabled") is True
+          assert (
+              moviebox.get("filename")
+              == "providers/moviebox.js"
+          )
+
+          print("Manifest validation passed.")
+          PY
+
+      - name: Deterministic MovieBox v1.1 test
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/test-moviebox-v1.1.cjs
+
+      - name: Live MovieBox diagnostic smoke test
+        id: live
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/live-moviebox-v1.1.cjs
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email             "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add             manifest.json             providers/moviebox.js             scripts/test-moviebox-v1.1.cjs             scripts/live-moviebox-v1.1.cjs             src/moviebox/README.md
+
+          if [ -f PORTING_STATUS.md ]; then
+            git add PORTING_STATUS.md
+          fi
+
+          git commit -m             "Fix MovieBox resolver diagnostics v1.1"
+
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Summary
+        if: always()
+        shell: bash
+        env:
+          LIVE_OUTCOME: ${{ steps.live.outcome }}
+        run: |
+          {
+            echo "## MovieBox v1.1"
+            echo
+            echo "- TMDB resolver timeout: 11 seconds"
+            echo "- Search primary: H5 V2 API"
+            echo "- Search fallback: MovieBox web mirrors"
+            echo "- Playback primary: h5.aoneroom.com"
+            echo "- Playback shapes: streams, HLS, DASH"
+            echo "- Diagnostic stages: tmdb, search, play, caption"
+            echo "- Live smoke outcome: \`${LIVE_OUTCOME:-not-run}\`"
+            echo
+            echo "If device health still fails, the provider now rejects with the failed stage instead of returning only an empty array."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,45 @@
+{
+  "sourceName": "MovieBox",
+  "id": "moviebox",
+  "status": "AUTO_PORT_CANDIDATE",
+  "score": 93,
+  "kotlinFiles": [
+    "src/main/kotlin/com/moviebox/MovieboxPlugin.kt",
+    "src/main/kotlin/com/moviebox/MovieboxProvider.kt"
+  ],
+  "kotlinFileCount": 2,
+  "sourceSha256": "b2413ae296a475922850349a4576f24e469d143cd1f514f7372781580198bcde",
+  "counts": {
+    "http_get": 5,
+    "http_post": 2,
+    "load_extractor": 0,
+    "webview": 0,
+    "aes_crypto": 0,
+    "base64": 0,
+    "html_dom": 0,
+    "json": 47,
+    "m3u8": 0,
+    "extractor_api": 0,
+    "load_links": 1,
+    "search": 2,
+    "coroutines": 9
+  },
+  "mainUrls": [
+    "https://moviebox.ph"
+  ],
+  "discoveredUrls": [
+    "https://filmboom.top",
+    "https://h5-api.aoneroom.com",
+    "https://moviebox.ng",
+    "https://moviebox.ph",
+    "https://moviebox.pk"
+  ],
+  "autoMappings": [
+    "HTTP GET/POST -> fetch compatibility helper",
+    "JSON parsing/models -> JavaScript objects/JSON"
+  ],
+  "manualAdapters": [
+    "Coroutine concurrency needs Promise translation"
+  ],
+  "blockers": []
+}

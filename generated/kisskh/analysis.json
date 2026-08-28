@@ -1,0 +1,47 @@
+{
+  "sourceName": "KissKH",
+  "id": "kisskh",
+  "status": "ADAPTERS_REQUIRED",
+  "score": 62,
+  "kotlinFiles": [
+    "src/main/kotlin/com/kisskh/KissKH.kt",
+    "src/main/kotlin/com/kisskh/KissKHPlugin.kt",
+    "src/main/kotlin/com/kisskh/SubDecryptor.kt"
+  ],
+  "kotlinFileCount": 3,
+  "sourceSha256": "abb958863a3abd0fb341fba6f8fd00cb9a657d40477a6649b6a2fc42c4287a9f",
+  "counts": {
+    "http_get": 7,
+    "http_post": 0,
+    "load_extractor": 1,
+    "webview": 0,
+    "aes_crypto": 7,
+    "base64": 2,
+    "html_dom": 0,
+    "json": 37,
+    "m3u8": 1,
+    "extractor_api": 0,
+    "load_links": 1,
+    "search": 2,
+    "coroutines": 0
+  },
+  "mainUrls": [
+    "https://kisskh.id"
+  ],
+  "discoveredUrls": [
+    "https://kisskh.id",
+    "https://script.google.com/macros/s/AKfycbyq6hTj0ZhlinYC6xbggtgo166tp6XaDKBCGtnYk8uOfYBUFwwxBui0sGXiu_zIFmA/exec?id=",
+    "https://script.google.com/macros/s/AKfycbzn8B31PuDxzaMa9_CQ0VGEDasFqfzI5bXvjaIZH4DM8DNq9q6xj1ALvZNz_JT3jF0suA/exec?id="
+  ],
+  "autoMappings": [
+    "HTTP GET/POST -> fetch compatibility helper",
+    "JSON parsing/models -> JavaScript objects/JSON",
+    "Base64 -> compatibility helper",
+    "HLS URL detection -> VUEO stream output"
+  ],
+  "manualAdapters": [
+    "CloudStream extractor calls need JS extractor adapters",
+    "AES/crypto logic needs bundled JS crypto adapter"
+  ],
+  "blockers": []
+}

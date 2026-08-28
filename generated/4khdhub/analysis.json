@@ -1,0 +1,63 @@
+{
+  "sourceName": "4KHDHub",
+  "id": "4khdhub",
+  "status": "MANUAL_RUNTIME_REQUIRED",
+  "score": 17,
+  "kotlinFiles": [
+    "src/main/kotlin/com/fourkhdhub/Extractors.kt",
+    "src/main/kotlin/com/fourkhdhub/FourKHDHubProvider.kt",
+    "src/main/kotlin/com/fourkhdhub/FourKHDHubProviderPlugin.kt",
+    "src/main/kotlin/com/fourkhdhub/RedirectUtils.kt"
+  ],
+  "kotlinFileCount": 4,
+  "sourceSha256": "46ba6759f23ae4e1fdfdc898a65088298d7f508b9772210a0f82c2eacf34c12f",
+  "counts": {
+    "http_get": 11,
+    "http_post": 0,
+    "load_extractor": 3,
+    "webview": 1,
+    "aes_crypto": 0,
+    "base64": 9,
+    "html_dom": 119,
+    "json": 5,
+    "m3u8": 2,
+    "extractor_api": 15,
+    "load_links": 1,
+    "search": 2,
+    "coroutines": 0
+  },
+  "mainUrls": [
+    "https://hubcloud",
+    "https://hubdrive",
+    "https://hblinks",
+    "https://hubcdn",
+    "https://hdstream4u",
+    "https://hubstream",
+    "https://pixeldrain.dev",
+    "https://4khdhub.one"
+  ],
+  "discoveredUrls": [
+    "https://4khdhub.one",
+    "https://4khdhub.one/",
+    "https://hblinks",
+    "https://hdstream4u",
+    "https://hubcdn",
+    "https://hubcloud",
+    "https://hubdrive",
+    "https://hubstream",
+    "https://pixeldrain.dev"
+  ],
+  "autoMappings": [
+    "HTTP GET/POST -> fetch compatibility helper",
+    "JSON parsing/models -> JavaScript objects/JSON",
+    "Base64 -> compatibility helper",
+    "HLS URL detection -> VUEO stream output"
+  ],
+  "manualAdapters": [
+    "HTML/Jsoup selectors need DOM translation",
+    "CloudStream extractor calls need JS extractor adapters"
+  ],
+  "blockers": [
+    "Android WebView/network interception cannot be auto-converted to plain VUEO JS"
+  ]
+}

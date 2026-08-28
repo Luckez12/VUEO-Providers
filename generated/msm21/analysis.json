@@ -1,0 +1,56 @@
+{
+  "sourceName": "MSM21",
+  "id": "msm21",
+  "status": "MANUAL_RUNTIME_REQUIRED",
+  "score": 10,
+  "kotlinFiles": [
+    "src/main/kotlin/com/msm21/extractors.kt",
+    "src/main/kotlin/com/msm21/msm21.kt",
+    "src/main/kotlin/com/msm21/msm21plugin.kt"
+  ],
+  "kotlinFileCount": 3,
+  "sourceSha256": "71458316ef3346b2b73e543bf4c60795ca3873c4f16a90da767366a30c041d81",
+  "counts": {
+    "http_get": 5,
+    "http_post": 1,
+    "load_extractor": 1,
+    "webview": 35,
+    "aes_crypto": 0,
+    "base64": 0,
+    "html_dom": 65,
+    "json": 5,
+    "m3u8": 3,
+    "extractor_api": 4,
+    "load_links": 1,
+    "search": 1,
+    "coroutines": 16
+  },
+  "mainUrls": [
+    "https://hglink.to",
+    "https://dsvplay.com",
+    "https://bysesukior.com",
+    "https://mixdrop.top",
+    "https://pencurimoviesubmalay26.site"
+  ],
+  "discoveredUrls": [
+    "https://bysesukior.com",
+    "https://dsvplay.com",
+    "https://hglink.to",
+    "https://mixdrop.top",
+    "https://pencurimoviesubmalay26.site",
+    "https://www.youtube.com/watch?v=$it"
+  ],
+  "autoMappings": [
+    "HTTP GET/POST -> fetch compatibility helper",
+    "JSON parsing/models -> JavaScript objects/JSON",
+    "HLS URL detection -> VUEO stream output"
+  ],
+  "manualAdapters": [
+    "HTML/Jsoup selectors need DOM translation",
+    "CloudStream extractor calls need JS extractor adapters",
+    "Coroutine concurrency needs Promise translation"
+  ],
+  "blockers": [
+    "Android WebView/network interception cannot be auto-converted to plain VUEO JS"
+  ]
+}

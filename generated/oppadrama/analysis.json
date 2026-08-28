@@ -1,0 +1,61 @@
+{
+  "sourceName": "OppaDrama",
+  "id": "oppadrama",
+  "status": "MANUAL_RUNTIME_REQUIRED",
+  "score": 10,
+  "kotlinFiles": [
+    "src/main/kotlin/com/oppadrama/AbyssWebViewProbe.kt",
+    "src/main/kotlin/com/oppadrama/OppaRuntime.kt",
+    "src/main/kotlin/com/oppadrama/OppadramaProvider.kt",
+    "src/main/kotlin/com/oppadrama/OppadramaProviderPlugin.kt"
+  ],
+  "kotlinFileCount": 4,
+  "sourceSha256": "f8b2bcb613821e7b60f650996cc6516f9edc15d9b0d04b13927aeb0ff21f3436",
+  "counts": {
+    "http_get": 4,
+    "http_post": 0,
+    "load_extractor": 1,
+    "webview": 43,
+    "aes_crypto": 0,
+    "base64": 4,
+    "html_dom": 55,
+    "json": 0,
+    "m3u8": 1,
+    "extractor_api": 0,
+    "load_links": 1,
+    "search": 1,
+    "coroutines": 5
+  },
+  "mainUrls": [],
+  "discoveredUrls": [
+    "http://45.11.57.188",
+    "https://abyssplayer.com$value",
+    "https://abyssplayer.com/?v=$id",
+    "https://embedsb.com/e/$id",
+    "https://oppa.biz",
+    "https://playersb.com/e/$id",
+    "https://sbembed.com/e/$id",
+    "https://sbembed1.com/e/$id.html",
+    "https://sbembed4.com/e/$id.html",
+    "https://sbplay.org/e/$id",
+    "https://sbvideo.net/e/$id.html",
+    "https://streamsb.com/e/$id",
+    "https://streamsb.net/e/$id",
+    "https://streamsss.net/e/$id",
+    "https://viewsb.com/e/$id",
+    "https://watchsb.com/e/$id"
+  ],
+  "autoMappings": [
+    "HTTP GET/POST -> fetch compatibility helper",
+    "Base64 -> compatibility helper",
+    "HLS URL detection -> VUEO stream output"
+  ],
+  "manualAdapters": [
+    "HTML/Jsoup selectors need DOM translation",
+    "CloudStream extractor calls need JS extractor adapters",
+    "Coroutine concurrency needs Promise translation"
+  ],
+  "blockers": [
+    "Android WebView/network interception cannot be auto-converted to plain VUEO JS"
+  ]
+}

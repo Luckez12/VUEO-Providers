@@ -1,0 +1,367 @@
+{
+  "providers": [
+    {
+      "sourceName": "4KHDHub",
+      "id": "4khdhub",
+      "status": "MANUAL_RUNTIME_REQUIRED",
+      "score": 17,
+      "kotlinFiles": [
+        "src/main/kotlin/com/fourkhdhub/Extractors.kt",
+        "src/main/kotlin/com/fourkhdhub/FourKHDHubProvider.kt",
+        "src/main/kotlin/com/fourkhdhub/FourKHDHubProviderPlugin.kt",
+        "src/main/kotlin/com/fourkhdhub/RedirectUtils.kt"
+      ],
+      "kotlinFileCount": 4,
+      "sourceSha256": "46ba6759f23ae4e1fdfdc898a65088298d7f508b9772210a0f82c2eacf34c12f",
+      "counts": {
+        "http_get": 11,
+        "http_post": 0,
+        "load_extractor": 3,
+        "webview": 1,
+        "aes_crypto": 0,
+        "base64": 9,
+        "html_dom": 119,
+        "json": 5,
+        "m3u8": 2,
+        "extractor_api": 15,
+        "load_links": 1,
+        "search": 2,
+        "coroutines": 0
+      },
+      "mainUrls": [
+        "https://hubcloud",
+        "https://hubdrive",
+        "https://hblinks",
+        "https://hubcdn",
+        "https://hdstream4u",
+        "https://hubstream",
+        "https://pixeldrain.dev",
+        "https://4khdhub.one"
+      ],
+      "discoveredUrls": [
+        "https://4khdhub.one",
+        "https://4khdhub.one/",
+        "https://hblinks",
+        "https://hdstream4u",
+        "https://hubcdn",
+        "https://hubcloud",
+        "https://hubdrive",
+        "https://hubstream",
+        "https://pixeldrain.dev"
+      ],
+      "autoMappings": [
+        "HTTP GET/POST -> fetch compatibility helper",
+        "JSON parsing/models -> JavaScript objects/JSON",
+        "Base64 -> compatibility helper",
+        "HLS URL detection -> VUEO stream output"
+      ],
+      "manualAdapters": [
+        "HTML/Jsoup selectors need DOM translation",
+        "CloudStream extractor calls need JS extractor adapters"
+      ],
+      "blockers": [
+        "Android WebView/network interception cannot be auto-converted to plain VUEO JS"
+      ]
+    },
+    {
+      "sourceName": "KissKH",
+      "id": "kisskh",
+      "status": "ADAPTERS_REQUIRED",
+      "score": 62,
+      "kotlinFiles": [
+        "src/main/kotlin/com/kisskh/KissKH.kt",
+        "src/main/kotlin/com/kisskh/KissKHPlugin.kt",
+        "src/main/kotlin/com/kisskh/SubDecryptor.kt"
+      ],
+      "kotlinFileCount": 3,
+      "sourceSha256": "abb958863a3abd0fb341fba6f8fd00cb9a657d40477a6649b6a2fc42c4287a9f",
+      "counts": {
+        "http_get": 7,
+        "http_post": 0,
+        "load_extractor": 1,
+        "webview": 0,
+        "aes_crypto": 7,
+        "base64": 2,
+        "html_dom": 0,
+        "json": 37,
+        "m3u8": 1,
+        "extractor_api": 0,
+        "load_links": 1,
+        "search": 2,
+        "coroutines": 0
+      },
+      "mainUrls": [
+        "https://kisskh.id"
+      ],
+      "discoveredUrls": [
+        "https://kisskh.id",
+        "https://script.google.com/macros/s/AKfycbyq6hTj0ZhlinYC6xbggtgo166tp6XaDKBCGtnYk8uOfYBUFwwxBui0sGXiu_zIFmA/exec?id=",
+        "https://script.google.com/macros/s/AKfycbzn8B31PuDxzaMa9_CQ0VGEDasFqfzI5bXvjaIZH4DM8DNq9q6xj1ALvZNz_JT3jF0suA/exec?id="
+      ],
+      "autoMappings": [
+        "HTTP GET/POST -> fetch compatibility helper",
+        "JSON parsing/models -> JavaScript objects/JSON",
+        "Base64 -> compatibility helper",
+        "HLS URL detection -> VUEO stream output"
+      ],
+      "manualAdapters": [
+        "CloudStream extractor calls need JS extractor adapters",
+        "AES/crypto logic needs bundled JS crypto adapter"
+      ],
+      "blockers": []
+    },
+    {
+      "sourceName": "MSM21",
+      "id": "msm21",
+      "status": "MANUAL_RUNTIME_REQUIRED",
+      "score": 10,
+      "kotlinFiles": [
+        "src/main/kotlin/com/msm21/extractors.kt",
+        "src/main/kotlin/com/msm21/msm21.kt",
+        "src/main/kotlin/com/msm21/msm21plugin.kt"
+      ],
+      "kotlinFileCount": 3,
+      "sourceSha256": "71458316ef3346b2b73e543bf4c60795ca3873c4f16a90da767366a30c041d81",
+      "counts": {
+        "http_get": 5,
+        "http_post": 1,
+        "load_extractor": 1,
+        "webview": 35,
+        "aes_crypto": 0,
+        "base64": 0,
+        "html_dom": 65,
+        "json": 5,
+        "m3u8": 3,
+        "extractor_api": 4,
+        "load_links": 1,
+        "search": 1,
+        "coroutines": 16
+      },
+      "mainUrls": [
+        "https://hglink.to",
+        "https://dsvplay.com",
+        "https://bysesukior.com",
+        "https://mixdrop.top",
+        "https://pencurimoviesubmalay26.site"
+      ],
+      "discoveredUrls": [
+        "https://bysesukior.com",
+        "https://dsvplay.com",
+        "https://hglink.to",
+        "https://mixdrop.top",
+        "https://pencurimoviesubmalay26.site",
+        "https://www.youtube.com/watch?v=$it"
+      ],
+      "autoMappings": [
+        "HTTP GET/POST -> fetch compatibility helper",
+        "JSON parsing/models -> JavaScript objects/JSON",
+        "HLS URL detection -> VUEO stream output"
+      ],
+      "manualAdapters": [
+        "HTML/Jsoup selectors need DOM translation",
+        "CloudStream extractor calls need JS extractor adapters",
+        "Coroutine concurrency needs Promise translation"
+      ],
+      "blockers": [
+        "Android WebView/network interception cannot be auto-converted to plain VUEO JS"
+      ]
+    },
+    {
+      "sourceName": "MovieBox",
+      "id": "moviebox",
+      "status": "AUTO_PORT_CANDIDATE",
+      "score": 93,
+      "kotlinFiles": [
+        "src/main/kotlin/com/moviebox/MovieboxPlugin.kt",
+        "src/main/kotlin/com/moviebox/MovieboxProvider.kt"
+      ],
+      "kotlinFileCount": 2,
+      "sourceSha256": "b2413ae296a475922850349a4576f24e469d143cd1f514f7372781580198bcde",
+      "counts": {
+        "http_get": 5,
+        "http_post": 2,
+        "load_extractor": 0,
+        "webview": 0,
+        "aes_crypto": 0,
+        "base64": 0,
+        "html_dom": 0,
+        "json": 47,
+        "m3u8": 0,
+        "extractor_api": 0,
+        "load_links": 1,
+        "search": 2,
+        "coroutines": 9
+      },
+      "mainUrls": [
+        "https://moviebox.ph"
+      ],
+      "discoveredUrls": [
+        "https://filmboom.top",
+        "https://h5-api.aoneroom.com",
+        "https://moviebox.ng",
+        "https://moviebox.ph",
+        "https://moviebox.pk"
+      ],
+      "autoMappings": [
+        "HTTP GET/POST -> fetch compatibility helper",
+        "JSON parsing/models -> JavaScript objects/JSON"
+      ],
+      "manualAdapters": [
+        "Coroutine concurrency needs Promise translation"
+      ],
+      "blockers": []
+    },
+    {
+      "sourceName": "OneTouchTV",
+      "id": "onetouchtv",
+      "status": "AUTO_PORT_CANDIDATE",
+      "score": 82,
+      "kotlinFiles": [
+        "src/main/kotlin/com/onetouchtv/Decryption.kt",
+        "src/main/kotlin/com/onetouchtv/Models.kt",
+        "src/main/kotlin/com/onetouchtv/OneTouchTV.kt",
+        "src/main/kotlin/com/onetouchtv/OneTouchTVParser.kt",
+        "src/main/kotlin/com/onetouchtv/OneTouchTVPlugin.kt"
+      ],
+      "kotlinFileCount": 5,
+      "sourceSha256": "41fe8052a56adfd9e7773505fd7b3e09375adcd6639ff2b98380a5bb4b9d5d20",
+      "counts": {
+        "http_get": 1,
+        "http_post": 0,
+        "load_extractor": 0,
+        "webview": 0,
+        "aes_crypto": 8,
+        "base64": 5,
+        "html_dom": 0,
+        "json": 6,
+        "m3u8": 0,
+        "extractor_api": 0,
+        "load_links": 1,
+        "search": 1,
+        "coroutines": 0
+      },
+      "mainUrls": [],
+      "discoveredUrls": [],
+      "autoMappings": [
+        "HTTP GET/POST -> fetch compatibility helper",
+        "JSON parsing/models -> JavaScript objects/JSON",
+        "Base64 -> compatibility helper"
+      ],
+      "manualAdapters": [
+        "AES/crypto logic needs bundled JS crypto adapter"
+      ],
+      "blockers": []
+    },
+    {
+      "sourceName": "OppaDrama",
+      "id": "oppadrama",
+      "status": "MANUAL_RUNTIME_REQUIRED",
+      "score": 10,
+      "kotlinFiles": [
+        "src/main/kotlin/com/oppadrama/AbyssWebViewProbe.kt",
+        "src/main/kotlin/com/oppadrama/OppaRuntime.kt",
+        "src/main/kotlin/com/oppadrama/OppadramaProvider.kt",
+        "src/main/kotlin/com/oppadrama/OppadramaProviderPlugin.kt"
+      ],
+      "kotlinFileCount": 4,
+      "sourceSha256": "f8b2bcb613821e7b60f650996cc6516f9edc15d9b0d04b13927aeb0ff21f3436",
+      "counts": {
+        "http_get": 4,
+        "http_post": 0,
+        "load_extractor": 1,
+        "webview": 43,
+        "aes_crypto": 0,
+        "base64": 4,
+        "html_dom": 55,
+        "json": 0,
+        "m3u8": 1,
+        "extractor_api": 0,
+        "load_links": 1,
+        "search": 1,
+        "coroutines": 5
+      },
+      "mainUrls": [],
+      "discoveredUrls": [
+        "http://45.11.57.188",
+        "https://abyssplayer.com$value",
+        "https://abyssplayer.com/?v=$id",
+        "https://embedsb.com/e/$id",
+        "https://oppa.biz",
+        "https://playersb.com/e/$id",
+        "https://sbembed.com/e/$id",
+        "https://sbembed1.com/e/$id.html",
+        "https://sbembed4.com/e/$id.html",
+        "https://sbplay.org/e/$id",
+        "https://sbvideo.net/e/$id.html",
+        "https://streamsb.com/e/$id",
+        "https://streamsb.net/e/$id",
+        "https://streamsss.net/e/$id",
+        "https://viewsb.com/e/$id",
+        "https://watchsb.com/e/$id"
+      ],
+      "autoMappings": [
+        "HTTP GET/POST -> fetch compatibility helper",
+        "Base64 -> compatibility helper",
+        "HLS URL detection -> VUEO stream output"
+      ],
+      "manualAdapters": [
+        "HTML/Jsoup selectors need DOM translation",
+        "CloudStream extractor calls need JS extractor adapters",
+        "Coroutine concurrency needs Promise translation"
+      ],
+      "blockers": [
+        "Android WebView/network interception cannot be auto-converted to plain VUEO JS"
+      ]
+    },
+    {
+      "sourceName": "PencuriMovie",
+      "id": "pencurimovie",
+      "status": "ADAPTERS_REQUIRED",
+      "score": 55,
+      "kotlinFiles": [
+        "src/main/kotlin/com/pencurimovie/Extractors.kt",
+        "src/main/kotlin/com/pencurimovie/Pencurimovie.kt",
+        "src/main/kotlin/com/pencurimovie/PencurimoviePlugin.kt"
+      ],
+      "kotlinFileCount": 3,
+      "sourceSha256": "a3e71479845239dba5f6639f40f05e6ccbcd310d1dbe384f59bc084958a3c81d",
+      "counts": {
+        "http_get": 6,
+        "http_post": 0,
+        "load_extractor": 2,
+        "webview": 0,
+        "aes_crypto": 0,
+        "base64": 1,
+        "html_dom": 62,
+        "json": 3,
+        "m3u8": 2,
+        "extractor_api": 3,
+        "load_links": 1,
+        "search": 1,
+        "coroutines": 5
+      },
+      "mainUrls": [
+        "https://hglink.to",
+        "https://dsvplay.com",
+        "https://ww21.pencurimovie.sbs"
+      ],
+      "discoveredUrls": [
+        "https://dsvplay.com",
+        "https://hglink.to",
+        "https://ww21.pencurimovie.sbs"
+      ],
+      "autoMappings": [
+        "HTTP GET/POST -> fetch compatibility helper",
+        "JSON parsing/models -> JavaScript objects/JSON",
+        "Base64 -> compatibility helper",
+        "HLS URL detection -> VUEO stream output"
+      ],
+      "manualAdapters": [
+        "HTML/Jsoup selectors need DOM translation",
+        "CloudStream extractor calls need JS extractor adapters",
+        "Coroutine concurrency needs Promise translation"
+      ],
+      "blockers": []
+    }
+  ]
+}

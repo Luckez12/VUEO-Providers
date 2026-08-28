@@ -1,0 +1,41 @@
+{
+  "sourceName": "OneTouchTV",
+  "id": "onetouchtv",
+  "status": "AUTO_PORT_CANDIDATE",
+  "score": 82,
+  "kotlinFiles": [
+    "src/main/kotlin/com/onetouchtv/Decryption.kt",
+    "src/main/kotlin/com/onetouchtv/Models.kt",
+    "src/main/kotlin/com/onetouchtv/OneTouchTV.kt",
+    "src/main/kotlin/com/onetouchtv/OneTouchTVParser.kt",
+    "src/main/kotlin/com/onetouchtv/OneTouchTVPlugin.kt"
+  ],
+  "kotlinFileCount": 5,
+  "sourceSha256": "41fe8052a56adfd9e7773505fd7b3e09375adcd6639ff2b98380a5bb4b9d5d20",
+  "counts": {
+    "http_get": 1,
+    "http_post": 0,
+    "load_extractor": 0,
+    "webview": 0,
+    "aes_crypto": 8,
+    "base64": 5,
+    "html_dom": 0,
+    "json": 6,
+    "m3u8": 0,
+    "extractor_api": 0,
+    "load_links": 1,
+    "search": 1,
+    "coroutines": 0
+  },
+  "mainUrls": [],
+  "discoveredUrls": [],
+  "autoMappings": [
+    "HTTP GET/POST -> fetch compatibility helper",
+    "JSON parsing/models -> JavaScript objects/JSON",
+    "Base64 -> compatibility helper"
+  ],
+  "manualAdapters": [
+    "AES/crypto logic needs bundled JS crypto adapter"
+  ],
+  "blockers": []
+}

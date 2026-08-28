@@ -1,0 +1,50 @@
+{
+  "sourceName": "PencuriMovie",
+  "id": "pencurimovie",
+  "status": "ADAPTERS_REQUIRED",
+  "score": 55,
+  "kotlinFiles": [
+    "src/main/kotlin/com/pencurimovie/Extractors.kt",
+    "src/main/kotlin/com/pencurimovie/Pencurimovie.kt",
+    "src/main/kotlin/com/pencurimovie/PencurimoviePlugin.kt"
+  ],
+  "kotlinFileCount": 3,
+  "sourceSha256": "a3e71479845239dba5f6639f40f05e6ccbcd310d1dbe384f59bc084958a3c81d",
+  "counts": {
+    "http_get": 6,
+    "http_post": 0,
+    "load_extractor": 2,
+    "webview": 0,
+    "aes_crypto": 0,
+    "base64": 1,
+    "html_dom": 62,
+    "json": 3,
+    "m3u8": 2,
+    "extractor_api": 3,
+    "load_links": 1,
+    "search": 1,
+    "coroutines": 5
+  },
+  "mainUrls": [
+    "https://hglink.to",
+    "https://dsvplay.com",
+    "https://ww21.pencurimovie.sbs"
+  ],
+  "discoveredUrls": [
+    "https://dsvplay.com",
+    "https://hglink.to",
+    "https://ww21.pencurimovie.sbs"
+  ],
+  "autoMappings": [
+    "HTTP GET/POST -> fetch compatibility helper",
+    "JSON parsing/models -> JavaScript objects/JSON",
+    "Base64 -> compatibility helper",
+    "HLS URL detection -> VUEO stream output"
+  ],
+  "manualAdapters": [
+    "HTML/Jsoup selectors need DOM translation",
+    "CloudStream extractor calls need JS extractor adapters",
+    "Coroutine concurrency needs Promise translation"
+  ],
+  "blockers": []
+}

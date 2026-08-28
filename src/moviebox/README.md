@@ -1,19 +1,21 @@
-# MovieBox VUEO Provider v1.1
+# MovieBox VUEO Provider v1.2
 
-This revision focuses on real device diagnosis and resolver reliability.
+MovieBox v1.2 improves search resolution for ambiguous titles.
 
-Changes:
+Key changes:
 
-1. TMDB HTML metadata timeout increased from 5 seconds to 11 seconds.
-2. Current MovieBox H5 V2 search is tried through `h5-api.aoneroom.com`.
-3. Legacy web mirrors remain parallel fallback search targets.
-4. Playback includes `detailPath`, `detailSe`, `detailEp`, `Origin` and the full player `Referer`.
-5. Playback accepts `streams`, `hls` and `dash` response shapes, including nested quality maps.
-6. The current H5 API caption endpoint is used for English, Malay and Indonesian subtitles.
-7. Diagnostic stage errors are rejected intentionally so VUEO Provider Health can report the failed stage instead of only `No Results`.
+1. Collects candidates from all available search requests instead of accepting the first host response.
+2. Searches the H5 API with the expected media type and with the all-types fallback.
+3. Keeps MovieBox web mirrors as parallel fallback sources.
+4. Tries the mobile BFF search endpoint as an additional discovery source.
+5. Extracts candidate objects recursively, so nested response shapes such as `data.results.content` are supported.
+6. Reads TMDB original title or original name values from the public metadata page when available and uses them as search aliases.
+7. Scores candidates using title similarity, media type and release year.
+8. Exact title plus correct media type is accepted when MovieBox does not provide a year.
+9. Search failure now includes candidate count and the highest ranked candidates in the diagnostic message.
 
-Diagnostic stages are:
+The search diagnostic contains:
 
-`tmdb` -> `search` -> `play` -> `caption` -> `provider`
+`stage=search ... unique=<count> raw=<count> sources=<count> top=<candidate summary>`
 
-After device behaviour is confirmed, diagnostic rejection can be relaxed back to an empty result for normal no-match cases.
+This lets VUEO Provider Health show whether MovieBox returned no candidates or whether candidates were found but rejected as unsafe matches.

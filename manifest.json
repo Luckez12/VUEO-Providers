@@ -1,6 +1,6 @@
 {
   "name": "VUEO Providers",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "scrapers": [
     {
       "id": "4khdhub",
@@ -56,8 +56,8 @@
     {
       "id": "moviebox",
       "name": "MovieBox",
-      "description": "MovieBox v1.1 with H5 V2 resolver, multi-host playback and device diagnostics.",
-      "version": "1.1.0",
+      "description": "MovieBox v1.2 with multi-source candidate discovery and safer title matching.",
+      "version": "1.2.0",
       "author": "Luckez12",
       "supportedTypes": [
         "movie",

@@ -1,20 +1,19 @@
-# MovieBox VUEO Provider
+# MovieBox VUEO Provider v1.1
 
-Status: functional v1.
+This revision focuses on real device diagnosis and resolver reliability.
 
-This provider is ported from the MovieBox implementation in
-`Luckez12/Cloudstream-Repo`.
+Changes:
 
-Runtime flow:
+1. TMDB HTML metadata timeout increased from 5 seconds to 11 seconds.
+2. Current MovieBox H5 V2 search is tried through `h5-api.aoneroom.com`.
+3. Legacy web mirrors remain parallel fallback search targets.
+4. Playback includes `detailPath`, `detailSe`, `detailEp`, `Origin` and the full player `Referer`.
+5. Playback accepts `streams`, `hls` and `dash` response shapes, including nested quality maps.
+6. The current H5 API caption endpoint is used for English, Malay and Indonesian subtitles.
+7. Diagnostic stage errors are rejected intentionally so VUEO Provider Health can report the failed stage instead of only `No Results`.
 
-1. Resolve the TMDB numeric ID to a title through the public TMDB media page.
-2. Race MovieBox H5 mirrors for an exact or high-confidence subject match.
-3. Race playback endpoints for direct stream URLs.
-4. Return HLS or MP4 streams with playback headers.
-5. Attach English, Malay and Indonesian captions when the MovieBox caption
-   endpoint supplies them.
+Diagnostic stages are:
 
-The distributed runtime file is `providers/moviebox.js`.
+`tmdb` -> `search` -> `play` -> `caption` -> `provider`
 
-The implementation intentionally uses Promise chains and Web APIs only so it
-can run in the VUEO JavaScript provider runtime.
+After device behaviour is confirmed, diagnostic rejection can be relaxed back to an empty result for normal no-match cases.

@@ -1,0 +1,127 @@
+{
+  "name": "VUEO Providers",
+  "version": "0.1.0",
+  "scrapers": [
+    {
+      "id": "4khdhub",
+      "name": "4KHDHub",
+      "description": "VUEO port target for the Luckez12 CloudStream 4KHDHub provider.",
+      "version": "0.1.0",
+      "author": "Luckez12",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/4khdhub.js",
+      "enabled": false,
+      "contentLanguage": [
+        "en"
+      ],
+      "supportsExternalPlayer": true
+    },
+    {
+      "id": "kisskh",
+      "name": "KissKH",
+      "description": "VUEO port target for the Luckez12 CloudStream KissKH provider.",
+      "version": "0.1.0",
+      "author": "Luckez12",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/kisskh.js",
+      "enabled": false,
+      "contentLanguage": [
+        "en"
+      ],
+      "supportsExternalPlayer": true
+    },
+    {
+      "id": "msm21",
+      "name": "MSM21",
+      "description": "VUEO port target for the Luckez12 CloudStream MSM21 provider.",
+      "version": "0.1.0",
+      "author": "Luckez12",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/msm21.js",
+      "enabled": false,
+      "contentLanguage": [
+        "id"
+      ],
+      "supportsExternalPlayer": true
+    },
+    {
+      "id": "moviebox",
+      "name": "MovieBox",
+      "description": "VUEO port target for the Luckez12 CloudStream MovieBox provider.",
+      "version": "0.1.0",
+      "author": "Luckez12",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/moviebox.js",
+      "enabled": false,
+      "contentLanguage": [
+        "en",
+        "id",
+        "ms"
+      ],
+      "supportsExternalPlayer": true
+    },
+    {
+      "id": "onetouchtv",
+      "name": "OneTouchTV",
+      "description": "VUEO port target for the Luckez12 CloudStream OneTouchTV provider.",
+      "version": "0.1.0",
+      "author": "Luckez12",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/onetouchtv.js",
+      "enabled": false,
+      "contentLanguage": [
+        "en"
+      ],
+      "supportsExternalPlayer": true
+    },
+    {
+      "id": "oppadrama",
+      "name": "OppaDrama",
+      "description": "VUEO port target for the Luckez12 CloudStream OppaDrama provider.",
+      "version": "0.1.0",
+      "author": "Luckez12",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/oppadrama.js",
+      "enabled": false,
+      "contentLanguage": [
+        "id"
+      ],
+      "supportsExternalPlayer": true
+    },
+    {
+      "id": "pencurimovie",
+      "name": "PencuriMovie",
+      "description": "VUEO port target for the Luckez12 CloudStream PencuriMovie provider.",
+      "version": "0.1.0",
+      "author": "Luckez12",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "filename": "providers/pencurimovie.js",
+      "enabled": false,
+      "contentLanguage": [
+        "id"
+      ],
+      "supportsExternalPlayer": true
+    }
+  ]
+}

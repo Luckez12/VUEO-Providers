@@ -1,0 +1,441 @@
+package com.kisskh
+
+import com.fasterxml.jackson.annotation.JsonProperty
+import com.lagradost.api.Log
+import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.mvvm.safeApiCall
+import com.lagradost.cloudstream3.utils.AppUtils.toJson
+import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
+import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.INFER_TYPE
+import com.lagradost.cloudstream3.utils.Qualities
+import com.lagradost.cloudstream3.utils.loadExtractor
+import com.lagradost.cloudstream3.utils.newExtractorLink
+import okhttp3.Interceptor
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
+import java.net.URLEncoder
+import java.util.ArrayList
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+
+class KissKH : MainAPI() {
+    override var mainUrl = "https://kisskh.id"
+    override var name = "KissKH 👾"
+    override val hasMainPage = true
+    override var lang = "en"
+    override val hasQuickSearch = false
+    override val supportedTypes = setOf(TvType.TvSeries, TvType.Movie, TvType.AsianDrama)
+
+    override val mainPage = mainPageOf(
+        "&type=0&sub=0&country=0&status=0&order=2" to "Latest Releases",
+        "&type=0&sub=0&country=2&status=0&order=1" to "Best Korean Dramas",
+        "&type=0&sub=0&country=1&status=0&order=1" to "Best Chinese Dramas",
+        "&type=2&sub=0&country=2&status=0&order=1" to "Popular Movies",
+        "&type=2&sub=0&country=2&status=0&order=2" to "Latest Updated Movies",
+        "&type=1&sub=0&country=2&status=0&order=1" to "Popular TV Series",
+        "&type=1&sub=0&country=2&status=0&order=2" to "Latest Updated TV Series",
+        "&type=3&sub=0&country=0&status=0&order=1" to "Popular Anime",
+        "&type=3&sub=0&country=0&status=0&order=2" to "Latest Updated Anime",
+        "&type=4&sub=0&country=0&status=0&order=1" to "Popular Hollywood",
+        "&type=4&sub=0&country=0&status=0&order=2" to "Latest Updated Hollywood",
+        "&type=0&sub=0&country=0&status=3&order=2" to "Coming Soon"
+    )
+
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        val home = app.get(
+            "$mainUrl/api/DramaList/List?page=$page${request.data}",
+            referer = "$mainUrl/"
+        ).parsedSafe<Responses>()?.data
+            ?.mapNotNull { it.toSearchResponse() }
+            ?: throw ErrorLoadingException("Invalid KissKH response")
+
+        return newHomePageResponse(
+            list = HomePageList(
+                name = request.name,
+                list = home,
+                isHorizontalImages = true
+            ),
+            hasNext = home.isNotEmpty()
+        )
+    }
+
+    private fun Media.toSearchResponse(): SearchResponse? {
+        if (!settingsForProvider.enableAdult && label?.contains("RAW", ignoreCase = true) == true) {
+            return null
+        }
+
+        val mediaTitle = title ?: return null
+        val mediaId = id ?: return null
+
+        return newAnimeSearchResponse(
+            mediaTitle,
+            "${getTitle(mediaTitle)}/$mediaId",
+            TvType.TvSeries
+        ) {
+            posterUrl = thumbnail
+            posterHeaders = mapOf("User-Agent" to USER_AGENT)
+            addSub(episodesCount)
+        }
+    }
+
+    override suspend fun search(query: String): List<SearchResponse> {
+        val q = URLEncoder.encode(query, "UTF-8")
+        val response = app.get(
+            "$mainUrl/api/DramaList/Search?q=$q&type=0",
+            referer = "$mainUrl/"
+        ).text
+
+        return tryParseJson<ArrayList<Media>>(response)
+            ?.mapNotNull { it.toSearchResponse() }
+            ?: emptyList()
+    }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
+
+    override suspend fun load(url: String): LoadResponse? {
+        val dramaId = url.substringAfterLast("/")
+        val slug = url.substringBeforeLast("/").substringAfterLast("/")
+
+        val res = app.get(
+            "$mainUrl/api/DramaList/Drama/$dramaId?isq=false",
+            referer = "$mainUrl/Drama/$slug?id=$dramaId"
+        ).parsedSafe<MediaDetail>()
+            ?: throw ErrorLoadingException("Invalid KissKH drama response")
+
+        val episodes = res.episodes?.mapNotNull { eps ->
+            val epsId = eps.id ?: return@mapNotNull null
+            val number = formatEpisodeNumber(eps.number)
+
+            newEpisode(
+                Data(res.title, eps.number, res.id, epsId).toJson()
+            ) {
+                name = "Episode $number"
+            }
+        } ?: throw ErrorLoadingException("No episodes found")
+
+        return newTvSeriesLoadResponse(
+            res.title ?: return null,
+            url,
+            if (res.type == "Movie" || episodes.size == 1) TvType.Movie else TvType.TvSeries,
+            episodes.reversed()
+        ) {
+            posterUrl = res.thumbnail?.trim()
+            posterHeaders = mapOf(
+                "User-Agent" to USER_AGENT,
+                "Referer" to "$mainUrl/"
+            )
+            year = res.releaseDate?.substringBefore("-")?.toIntOrNull()
+            plot = res.description
+            tags = listOfNotNull(res.country, res.status, res.type).filter { it.isNotBlank() }
+            showStatus = when (res.status) {
+                "Completed" -> ShowStatus.Completed
+                "Ongoing" -> ShowStatus.Ongoing
+                else -> null
+            }
+        }
+    }
+
+    private fun getTitle(str: String): String = str
+        .replace(Regex("[^a-zA-Z0-9]"), "-")
+        .replace(Regex("-+"), "-")
+        .trim('-')
+
+    private fun formatEpisodeNumber(number: Double?): String {
+        if (number == null) return ""
+        return if (number % 1.0 == 0.0) number.toInt().toString() else number.toString()
+    }
+
+    private fun getAllowedSubtitleLanguage(label: String?): String? {
+        val value = label?.trim()?.lowercase().orEmpty()
+        if (value.isBlank()) return null
+
+        fun hasWord(word: String): Boolean =
+            Regex("(^|[^a-z])${Regex.escape(word)}([^a-z]|$)").containsMatchIn(value)
+
+        return when {
+            value == "en" || value.startsWith("en-") || value.startsWith("en_") ||
+                hasWord("english") || hasWord("eng") -> "English"
+
+            value == "ms" || value.startsWith("ms-") || value.startsWith("ms_") ||
+                value == "msa" || value == "may" || value == "malaysia" ||
+                value.contains("bahasa melayu") || hasWord("melayu") || hasWord("malay") -> "Malay"
+
+            value == "id" || value.startsWith("id-") || value.startsWith("id_") ||
+                value == "ind" || value == "indonesia" || value == "indonesian" ||
+                value.contains("bahasa indonesia") || hasWord("indonesian") || hasWord("indonesia") -> "Indonesian"
+
+            else -> null
+        }
+    }
+
+    private fun inferQuality(url: String): Int = when {
+        url.contains("1080", ignoreCase = true) -> Qualities.P1080.value
+        url.contains("720", ignoreCase = true) -> Qualities.P720.value
+        else -> Qualities.Unknown.value
+    }
+
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val loadData = tryParseJson<Data>(data) ?: return false
+        val episodeId = loadData.epsId ?: return false
+
+        Log.d(TAG, "loadLinks episodeId=$episodeId")
+
+        val streamFound = AtomicBoolean(false)
+        val subtitleFound = AtomicBoolean(false)
+        val seenSubtitles = ConcurrentHashMap.newKeySet<String>()
+
+        fun emitSubtitle(subtitle: SubtitleFile) {
+            val language = getAllowedSubtitleLanguage(subtitle.lang) ?: return
+            val url = subtitle.url.trim().takeIf { it.isNotBlank() } ?: return
+            val dedupeKey = "${language.lowercase()}|$url"
+            if (!seenSubtitles.add(dedupeKey)) return
+
+            subtitle.lang = language
+            subtitle.url = url
+            subtitleCallback(subtitle)
+            subtitleFound.set(true)
+        }
+
+        suspend fun loadVideoPipeline() {
+            val videoKey = try {
+                app.get(
+                    "$VIDEO_KEY_API$episodeId&version=$KISSKH_VERSION",
+                    timeout = 8000
+                ).parsedSafe<Key>()?.key.orEmpty()
+            } catch (e: Exception) {
+                Log.e(TAG, "Video kkey request failed: ${e.message}")
+                ""
+            }
+
+            if (videoKey.isBlank()) {
+                Log.e(TAG, "Video kkey is empty")
+                return
+            }
+
+            val kkey = URLEncoder.encode(videoKey, "UTF-8")
+            val episodeNumber = formatEpisodeNumber(loadData.eps)
+            val slug = getTitle(loadData.title.orEmpty())
+            val videoApi = "$mainUrl/api/DramaList/Episode/$episodeId.png?err=false&ts=&time=&kkey=$kkey"
+            val referer = "$mainUrl/Drama/$slug/Episode-$episodeNumber?id=${loadData.id}&ep=$episodeId&page=0&pageSize=100"
+
+            val source = try {
+                app.get(videoApi, referer = referer, timeout = 10000).parsedSafe<Sources>()
+            } catch (e: Exception) {
+                Log.e(TAG, "Video API failed: ${e.message}")
+                null
+            } ?: return
+
+            val sourceLinks = listOfNotNull(source.video, source.thirdParty)
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .distinct()
+
+            Log.d(TAG, "Video sources=${sourceLinks.size}")
+
+            sourceLinks.amap { link ->
+                safeApiCall {
+                    when {
+                        link.contains(".m3u8", ignoreCase = true) -> {
+                            callback(
+                                newExtractorLink(
+                                    name,
+                                    name,
+                                    url = fixUrl(link),
+                                    INFER_TYPE
+                                ) {
+                                    quality = inferQuality(link)
+                                    headers = mapOf(
+                                        "Referer" to "$mainUrl/",
+                                        "Origin" to mainUrl
+                                    )
+                                }
+                            )
+                            streamFound.set(true)
+                        }
+
+                        link.contains(".mp4", ignoreCase = true) -> {
+                            callback(
+                                newExtractorLink(
+                                    name,
+                                    name,
+                                    url = fixUrl(link),
+                                    INFER_TYPE
+                                ) {
+                                    quality = inferQuality(link)
+                                    headers = mapOf(
+                                        "Referer" to "$mainUrl/",
+                                        "Origin" to mainUrl
+                                    )
+                                }
+                            )
+                            streamFound.set(true)
+                        }
+
+                        link.startsWith("http", ignoreCase = true) -> {
+                            loadExtractor(
+                                link,
+                                "$mainUrl/",
+                                ::emitSubtitle
+                            ) { extractedLink ->
+                                streamFound.set(true)
+                                callback(extractedLink)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        suspend fun loadSubtitlePipeline() {
+            val subtitleKey = try {
+                app.get(
+                    "$SUBTITLE_KEY_API$episodeId&version=$KISSKH_VERSION",
+                    timeout = 8000
+                ).parsedSafe<Key>()?.key.orEmpty()
+            } catch (e: Exception) {
+                Log.e(TAG, "Subtitle kkey request failed: ${e.message}")
+                ""
+            }
+
+            if (subtitleKey.isBlank()) {
+                Log.e(TAG, "Subtitle kkey is empty")
+                return
+            }
+
+            val kkey = URLEncoder.encode(subtitleKey, "UTF-8")
+            val subApi = "$mainUrl/api/Sub/$episodeId?kkey=$kkey"
+
+            try {
+                val subtitles = tryParseJson<List<Subtitle>>(
+                    app.get(subApi, referer = "$mainUrl/", timeout = 10000).text
+                ).orEmpty()
+
+                subtitles.forEach { sub ->
+                    val src = sub.src?.trim()?.takeIf { it.isNotBlank() } ?: return@forEach
+                    val language = getAllowedSubtitleLanguage(sub.label) ?: return@forEach
+                    emitSubtitle(SubtitleFile(language, fixUrl(src)))
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Subtitle API failed: ${e.message}")
+            }
+        }
+
+        listOf("video", "subtitle").amap { pipeline ->
+            when (pipeline) {
+                "video" -> loadVideoPipeline()
+                else -> loadSubtitlePipeline()
+            }
+        }
+
+        return streamFound.get() || subtitleFound.get()
+    }
+
+    private val chunkRegex by lazy { Regex("^\\d+$", RegexOption.MULTILINE) }
+
+    override fun getVideoInterceptor(extractorLink: ExtractorLink): Interceptor {
+        return object : Interceptor {
+            override fun intercept(chain: Interceptor.Chain): Response {
+                val response = chain.proceed(chain.request())
+                val url = response.request.url.toString()
+
+                if (!url.contains(".txt", ignoreCase = true)) return response
+
+                val contentType = response.body.contentType()
+                val encrypted = response.body.string()
+                val chunks = encrypted.split(chunkRegex)
+                    .filter { it.isNotBlank() }
+                    .map { it.trim() }
+
+                val decrypted = chunks.mapIndexedNotNull { index, chunk ->
+                    val parts = chunk.split("\n")
+                    if (parts.isEmpty()) return@mapIndexedNotNull null
+
+                    val timeCode = parts.first()
+                    val text = parts.drop(1).mapNotNull { line ->
+                        if (line.isBlank()) return@mapNotNull ""
+                        try {
+                            decrypt(line)
+                        } catch (e: Exception) {
+                            Log.e("KISSKH_SUB", "Decrypt failed: ${e.message}")
+                            null
+                        }
+                    }.joinToString("\n")
+
+                    if (text.isBlank()) return@mapIndexedNotNull null
+                    listOf(index + 1, timeCode, text).joinToString("\n")
+                }.joinToString("\n\n")
+
+                return response.newBuilder()
+                    .body(decrypted.toResponseBody(contentType))
+                    .build()
+            }
+        }
+    }
+
+    companion object {
+        private const val TAG = "KISSKH"
+        private const val KISSKH_VERSION = "2.8.10"
+        private const val VIDEO_KEY_API = "https://script.google.com/macros/s/AKfycbzn8B31PuDxzaMa9_CQ0VGEDasFqfzI5bXvjaIZH4DM8DNq9q6xj1ALvZNz_JT3jF0suA/exec?id="
+        private const val SUBTITLE_KEY_API = "https://script.google.com/macros/s/AKfycbyq6hTj0ZhlinYC6xbggtgo166tp6XaDKBCGtnYk8uOfYBUFwwxBui0sGXiu_zIFmA/exec?id="
+        private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Mobile Safari/537.36"
+    }
+}
+
+data class Media(
+    @param:JsonProperty("episodesCount") val episodesCount: Int?,
+    @param:JsonProperty("thumbnail") val thumbnail: String?,
+    @param:JsonProperty("label") val label: String?,
+    @param:JsonProperty("id") val id: Int?,
+    @param:JsonProperty("title") val title: String?
+)
+
+data class Data(
+    @param:JsonProperty("title") val title: String?,
+    @param:JsonProperty("eps") val eps: Double?,
+    @param:JsonProperty("id") val id: Int?,
+    @param:JsonProperty("epsId") val epsId: Int?
+)
+
+data class Sources(
+    @param:JsonProperty("Video") val video: String?,
+    @param:JsonProperty("ThirdParty") val thirdParty: String?
+)
+
+data class Subtitle(
+    @param:JsonProperty("src") val src: String?,
+    @param:JsonProperty("label") val label: String?
+)
+
+data class Responses(
+    @param:JsonProperty("data") val data: ArrayList<Media>? = arrayListOf()
+)
+
+data class Episodes(
+    @param:JsonProperty("id") val id: Int?,
+    @param:JsonProperty("number") val number: Double?,
+    @param:JsonProperty("sub") val sub: Int?
+)
+
+data class MediaDetail(
+    @param:JsonProperty("description") val description: String?,
+    @param:JsonProperty("releaseDate") val releaseDate: String?,
+    @param:JsonProperty("status") val status: String?,
+    @param:JsonProperty("type") val type: String?,
+    @param:JsonProperty("country") val country: String?,
+    @param:JsonProperty("episodes") val episodes: ArrayList<Episodes>? = arrayListOf(),
+    @param:JsonProperty("thumbnail") val thumbnail: String?,
+    @param:JsonProperty("id") val id: Int?,
+    @param:JsonProperty("title") val title: String?
+)
+
+data class Key(
+    @param:JsonProperty("id") val id: String? = null,
+    @param:JsonProperty("version") val version: String? = null,
+    @param:JsonProperty("key") val key: String? = null
+)

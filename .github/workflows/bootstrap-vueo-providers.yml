@@ -1,1 +1,376 @@
+name: Bootstrap VUEO Providers
 
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vueo-providers-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout VUEO-Providers
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch CloudStream reference source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/cloudstream-source"
+          git clone \
+            --depth 1 \
+            --branch main \
+            https://github.com/Luckez12/Cloudstream-Repo.git \
+            "$RUNNER_TEMP/cloudstream-source"
+
+      - name: Bootstrap VUEO provider repository
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          from pathlib import Path
+          import json
+          import os
+          import shutil
+
+          root = Path.cwd()
+          source = Path(os.environ["RUNNER_TEMP"]) / "cloudstream-source"
+
+          providers = [
+              {
+                  "source": "4KHDHub",
+                  "id": "4khdhub",
+                  "name": "4KHDHub",
+                  "description": "VUEO port target for the Luckez12 CloudStream 4KHDHub provider.",
+                  "types": ["movie", "tv"],
+                  "languages": ["en"],
+              },
+              {
+                  "source": "KissKH",
+                  "id": "kisskh",
+                  "name": "KissKH",
+                  "description": "VUEO port target for the Luckez12 CloudStream KissKH provider.",
+                  "types": ["movie", "tv"],
+                  "languages": ["en"],
+              },
+              {
+                  "source": "MSM21",
+                  "id": "msm21",
+                  "name": "MSM21",
+                  "description": "VUEO port target for the Luckez12 CloudStream MSM21 provider.",
+                  "types": ["movie", "tv"],
+                  "languages": ["id"],
+              },
+              {
+                  "source": "MovieBox",
+                  "id": "moviebox",
+                  "name": "MovieBox",
+                  "description": "VUEO port target for the Luckez12 CloudStream MovieBox provider.",
+                  "types": ["movie", "tv"],
+                  "languages": ["en", "id", "ms"],
+              },
+              {
+                  "source": "OneTouchTV",
+                  "id": "onetouchtv",
+                  "name": "OneTouchTV",
+                  "description": "VUEO port target for the Luckez12 CloudStream OneTouchTV provider.",
+                  "types": ["movie", "tv"],
+                  "languages": ["en"],
+              },
+              {
+                  "source": "OppaDrama",
+                  "id": "oppadrama",
+                  "name": "OppaDrama",
+                  "description": "VUEO port target for the Luckez12 CloudStream OppaDrama provider.",
+                  "types": ["movie", "tv"],
+                  "languages": ["id"],
+              },
+              {
+                  "source": "PencuriMovie",
+                  "id": "pencurimovie",
+                  "name": "PencuriMovie",
+                  "description": "VUEO port target for the Luckez12 CloudStream PencuriMovie provider.",
+                  "types": ["movie", "tv"],
+                  "languages": ["id"],
+              },
+          ]
+
+          providers_dir = root / "providers"
+          src_dir = root / "src"
+          ref_dir = root / "reference" / "cloudstream"
+          scripts_dir = root / "scripts"
+
+          providers_dir.mkdir(parents=True, exist_ok=True)
+          src_dir.mkdir(parents=True, exist_ok=True)
+          ref_dir.mkdir(parents=True, exist_ok=True)
+          scripts_dir.mkdir(parents=True, exist_ok=True)
+
+          # Anichin is intentionally excluded from VUEO-Providers.
+          for path in [
+              providers_dir / "anichin.js",
+              src_dir / "anichin",
+              ref_dir / "Anichin",
+          ]:
+              if path.is_dir():
+                  shutil.rmtree(path)
+              elif path.exists():
+                  path.unlink()
+
+          # Remove the initial placeholder folder only if it is empty.
+          placeholder = root / "d"
+          if placeholder.is_dir() and not any(placeholder.iterdir()):
+              placeholder.rmdir()
+
+          missing = []
+
+          for provider in providers:
+              src_provider = source / provider["source"]
+              if not src_provider.exists():
+                  missing.append(provider["source"])
+                  continue
+
+              # Keep the original CloudStream implementation as porting reference.
+              dest_ref = ref_dir / provider["source"]
+              if dest_ref.exists():
+                  shutil.rmtree(dest_ref)
+              shutil.copytree(src_provider, dest_ref)
+
+              workspace = src_dir / provider["id"]
+              workspace.mkdir(parents=True, exist_ok=True)
+
+              readme = workspace / "README.md"
+              if not readme.exists():
+                  readme.write_text(
+                      "# " + provider["name"] + " VUEO port\n\n"
+                      + "Source reference: `reference/cloudstream/"
+                      + provider["source"]
+                      + "/`\n\n"
+                      + "Target runtime contract:\n\n"
+                      + "```js\n"
+                      + "function getStreams(tmdbId, mediaType, season, episode) {\n"
+                      + "  return Promise.resolve([]);\n"
+                      + "}\n"
+                      + "```\n\n"
+                      + "Port search, episode resolution, stream extraction, headers and subtitles "
+                      + "into JavaScript before enabling this provider in `manifest.json`.\n",
+                      encoding="utf-8",
+                  )
+
+              # Existing real ports are never overwritten.
+              out = providers_dir / (provider["id"] + ".js")
+              if not out.exists():
+                  out.write_text(
+                      "// " + provider["name"] + " for VUEO\n"
+                      + "// Bootstrap stub generated from Luckez12/Cloudstream-Repo.\n"
+                      + "// Intentionally disabled until the CloudStream logic is ported and verified.\n\n"
+                      + "function getStreams(tmdbId, mediaType, season, episode) {\n"
+                      + "  console.log(\"[" + provider["name"] + "] provider not ported yet\");\n"
+                      + "  return Promise.resolve([]);\n"
+                      + "}\n\n"
+                      + "if (typeof module !== \"undefined\" && module.exports) {\n"
+                      + "  module.exports = { getStreams };\n"
+                      + "} else {\n"
+                      + "  global.getStreams = getStreams;\n"
+                      + "}\n",
+                      encoding="utf-8",
+                  )
+
+          if missing:
+              raise SystemExit(
+                  "CloudStream source is missing expected provider modules: "
+                  + ", ".join(missing)
+              )
+
+          manifest = {
+              "name": "VUEO Providers",
+              "version": "0.1.0",
+              "scrapers": [
+                  {
+                      "id": p["id"],
+                      "name": p["name"],
+                      "description": p["description"],
+                      "version": "0.1.0",
+                      "author": "Luckez12",
+                      "supportedTypes": p["types"],
+                      "filename": "providers/" + p["id"] + ".js",
+                      "enabled": False,
+                      "contentLanguage": p["languages"],
+                      "supportsExternalPlayer": True,
+                  }
+                  for p in providers
+              ],
+          }
+
+          (root / "manifest.json").write_text(
+              json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+              encoding="utf-8",
+          )
+
+          package = {
+              "name": "vueo-providers",
+              "version": "0.1.0",
+              "private": True,
+              "scripts": {"validate": "node scripts/validate.mjs"},
+          }
+          (root / "package.json").write_text(
+              json.dumps(package, indent=2) + "\n",
+              encoding="utf-8",
+          )
+
+          readme_lines = [
+              "# VUEO Providers",
+              "",
+              "Official JavaScript provider repository for VUEO.",
+              "",
+              "CloudStream source reference:",
+              "`https://github.com/Luckez12/Cloudstream-Repo`",
+              "",
+              "## Included port targets",
+              "",
+              "- 4KHDHub",
+              "- KissKH",
+              "- MSM21",
+              "- MovieBox",
+              "- OneTouchTV",
+              "- OppaDrama",
+              "- PencuriMovie",
+              "",
+              "Anichin is intentionally excluded.",
+              "",
+              "## Repository URL for VUEO",
+              "",
+              "`https://raw.githubusercontent.com/Luckez12/VUEO-Providers/main`",
+              "",
+              "## Runtime contract",
+              "",
+              "Each enabled provider must export `getStreams(tmdbId, mediaType, season, episode)` and return a Promise resolving to an array of playable stream objects.",
+              "",
+              "Providers remain disabled until their JavaScript ports are implemented and playback is verified.",
+              "",
+          ]
+          (root / "README.md").write_text(
+              "\n".join(readme_lines),
+              encoding="utf-8",
+          )
+
+          rows = "\n".join(
+              "| " + p["name"] + " | `" + p["id"] + "` | Pending port | Disabled |"
+              for p in providers
+          )
+          (root / "PORTING_STATUS.md").write_text(
+              "# VUEO Provider Porting Status\n\n"
+              + "| Provider | ID | Status | Manifest |\n"
+              + "| --- | --- | --- | --- |\n"
+              + rows
+              + "\n\nAnichin is excluded from this repository.\n",
+              encoding="utf-8",
+          )
+
+          validate_lines = [
+              'import fs from "node:fs";',
+              'import path from "node:path";',
+              '',
+              'const manifest = JSON.parse(fs.readFileSync(path.resolve("manifest.json"), "utf8"));',
+              'const list = Array.isArray(manifest.scrapers)',
+              '  ? manifest.scrapers',
+              '  : Array.isArray(manifest.providers)',
+              '    ? manifest.providers',
+              '    : [];',
+              '',
+              'if (!list.length) {',
+              '  throw new Error("manifest.json contains no scrapers/providers");',
+              '}',
+              '',
+              'const seen = new Set();',
+              '',
+              'for (const item of list) {',
+              '  if (!item.id || !item.filename) {',
+              '    throw new Error("Every provider needs id and filename");',
+              '  }',
+              '',
+              '  if (item.id.toLowerCase() === "anichin") {',
+              '    throw new Error("Anichin must not exist in VUEO-Providers");',
+              '  }',
+              '',
+              '  if (seen.has(item.id)) {',
+              '    throw new Error(`Duplicate provider id: ${item.id}`);',
+              '  }',
+              '  seen.add(item.id);',
+              '',
+              '  const file = path.resolve(item.filename);',
+              '  if (!fs.existsSync(file)) {',
+              '    throw new Error(`Missing provider file: ${item.filename}`);',
+              '  }',
+              '',
+              '  const source = fs.readFileSync(file, "utf8");',
+              '  if (!source.includes("getStreams")) {',
+              '    throw new Error(`${item.filename} does not expose getStreams`);',
+              '  }',
+              '}',
+              '',
+              'console.log(`Validated ${list.length} VUEO provider entries.`);',
+              '',
+          ]
+          validate_js = "\n".join(validate_lines)
+          (scripts_dir / "validate.mjs").write_text(validate_js, encoding="utf-8")
+
+          (root / ".gitignore").write_text(
+              "node_modules/\n.DS_Store\n*.log\n",
+              encoding="utf-8",
+          )
+
+          print("Bootstrapped 7 VUEO provider targets. Anichin excluded.")
+          PY
+
+      - name: Validate repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/validate.mjs
+          python3 -m json.tool manifest.json >/dev/null
+
+      - name: Show generated tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . \
+            -path './.git' -prune -o \
+            -maxdepth 4 \
+            -type f \
+            -print | sort
+
+      - name: Commit bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            .gitignore \
+            README.md \
+            PORTING_STATUS.md \
+            manifest.json \
+            package.json \
+            providers \
+            src \
+            reference \
+            scripts
+
+          git commit -m "Bootstrap VUEO provider repository"
+          git push

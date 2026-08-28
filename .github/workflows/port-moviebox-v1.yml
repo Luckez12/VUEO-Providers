@@ -1,0 +1,831 @@
+name: Port MovieBox v1
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vueo-port-moviebox-v1
+  cancel-in-progress: false
+
+jobs:
+  port:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout VUEO Providers
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f manifest.json
+          mkdir -p providers scripts src/moviebox
+
+      - name: Write MovieBox provider
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat > providers/moviebox.js <<'VUEO_MOVIEBOX_JS'
+          // MovieBox provider for VUEO
+          // Ported from Luckez12/Cloudstream-Repo MovieBoxProvider.kt.
+          // Promise based for Hermes compatibility. No Node APIs are used at runtime.
+
+          var MOVIEBOX_NAME = "MovieBox";
+          var MOVIEBOX_HOSTS = [
+            "https://moviebox.ph",
+            "https://moviebox.pk",
+            "https://moviebox.ng",
+            "https://filmboom.top"
+          ];
+          var MOVIEBOX_UA = "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Mobile Safari/537.36";
+          var MOVIEBOX_HEADERS = {
+            "Accept": "application/json",
+            "Accept-Language": "en-US,en;q=0.9",
+            "X-Client-Info": "{\"timezone\":\"Asia/Kuala_Lumpur\"}",
+            "User-Agent": MOVIEBOX_UA
+          };
+
+          function copyHeaders(extra) {
+            var out = {};
+            Object.keys(MOVIEBOX_HEADERS).forEach(function (key) { out[key] = MOVIEBOX_HEADERS[key]; });
+            Object.keys(extra || {}).forEach(function (key) { out[key] = extra[key]; });
+            return out;
+          }
+
+          function fetchTextWithTimeout(url, options, timeoutMs) {
+            return new Promise(function (resolve, reject) {
+              var settled = false;
+              var timer = setTimeout(function () {
+                if (!settled) {
+                  settled = true;
+                  reject(new Error("timeout"));
+                }
+              }, timeoutMs);
+
+              fetch(url, options || {}).then(function (response) {
+                if (!response || !response.ok) {
+                  throw new Error("HTTP " + (response ? response.status : "unknown"));
+                }
+                return response.text();
+              }).then(function (text) {
+                if (!settled) {
+                  settled = true;
+                  clearTimeout(timer);
+                  resolve(text);
+                }
+              }, function (error) {
+                if (!settled) {
+                  settled = true;
+                  clearTimeout(timer);
+                  reject(error);
+                }
+              });
+            });
+          }
+
+          function fetchJsonWithTimeout(url, options, timeoutMs) {
+            return new Promise(function (resolve, reject) {
+              var settled = false;
+              var timer = setTimeout(function () {
+                if (!settled) {
+                  settled = true;
+                  reject(new Error("timeout"));
+                }
+              }, timeoutMs);
+
+              fetch(url, options || {}).then(function (response) {
+                if (!response || !response.ok) {
+                  throw new Error("HTTP " + (response ? response.status : "unknown"));
+                }
+                return response.json();
+              }).then(function (json) {
+                if (!settled) {
+                  settled = true;
+                  clearTimeout(timer);
+                  resolve(json);
+                }
+              }, function (error) {
+                if (!settled) {
+                  settled = true;
+                  clearTimeout(timer);
+                  reject(error);
+                }
+              });
+            });
+          }
+
+          function decodeHtml(value) {
+            return String(value || "")
+              .replace(/&amp;/g, "&")
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;|&#x27;/g, "'")
+              .replace(/&lt;/g, "<")
+              .replace(/&gt;/g, ">");
+          }
+
+          function extractMeta(html, key) {
+            var escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            var patterns = [
+              new RegExp('<meta[^>]+(?:property|name)=["\\\']' + escaped + '["\\\'][^>]+content=["\\\']([^"\\\']+)["\\\']', "i"),
+              new RegExp('<meta[^>]+content=["\\\']([^"\\\']+)["\\\'][^>]+(?:property|name)=["\\\']' + escaped + '["\\\']', "i")
+            ];
+            for (var i = 0; i < patterns.length; i += 1) {
+              var match = html.match(patterns[i]);
+              if (match && match[1]) return decodeHtml(match[1]).trim();
+            }
+            return "";
+          }
+
+          function cleanTmdbTitle(value) {
+            var title = decodeHtml(value || "").replace(/\s+/g, " ").trim();
+            title = title.replace(/\s*[|\-\u2013\u2014]\s*(?:The Movie Database.*|TMDB.*)$/i, "").trim();
+            return title;
+          }
+
+          function resolveTmdbMetadata(tmdbId, mediaType) {
+            var type = String(mediaType || "").toLowerCase() === "tv" ? "tv" : "movie";
+            var url = "https://www.themoviedb.org/" + type + "/" + encodeURIComponent(String(tmdbId)) + "?language=en-US";
+            return fetchTextWithTimeout(url, {
+              method: "GET",
+              headers: {
+                "Accept": "text/html,application/xhtml+xml",
+                "Accept-Language": "en-US,en;q=0.9",
+                "User-Agent": MOVIEBOX_UA
+              }
+            }, 5000).then(function (html) {
+              var title = cleanTmdbTitle(extractMeta(html, "og:title") || extractMeta(html, "twitter:title"));
+              if (!title) {
+                var titleTag = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+                title = cleanTmdbTitle(titleTag && titleTag[1] ? titleTag[1] : "");
+              }
+              var year = null;
+              var yearMatch = title.match(/\((19|20)\d{2}\)$/);
+              if (yearMatch) {
+                year = parseInt(yearMatch[0].replace(/[()]/g, ""), 10);
+                title = title.replace(/\s*\((19|20)\d{2}\)$/, "").trim();
+              }
+              if (!title) throw new Error("TMDB title unavailable");
+              return { title: title, year: year, mediaType: type };
+            });
+          }
+
+          function raceHosts(hosts, makeRequest, isValid, timeoutMs) {
+            return new Promise(function (resolve) {
+              if (!hosts || hosts.length === 0) return resolve(null);
+              var finished = 0;
+              var settled = false;
+              var timer = setTimeout(function () {
+                if (!settled) {
+                  settled = true;
+                  resolve(null);
+                }
+              }, timeoutMs);
+
+              function done() {
+                finished += 1;
+                if (!settled && finished >= hosts.length) {
+                  settled = true;
+                  clearTimeout(timer);
+                  resolve(null);
+                }
+              }
+
+              hosts.forEach(function (host) {
+                makeRequest(host).then(function (value) {
+                  if (!settled && isValid(value)) {
+                    settled = true;
+                    clearTimeout(timer);
+                    resolve({ host: host, value: value });
+                    return;
+                  }
+                  done();
+                }, function () {
+                  done();
+                });
+              });
+            });
+          }
+
+          function normalizeTitle(value) {
+            return String(value || "")
+              .toLowerCase()
+              .replace(/&/g, "and")
+              .replace(/[^a-z0-9]+/g, " ")
+              .replace(/\s+/g, " ")
+              .trim();
+          }
+
+          function scoreCandidate(item, metadata) {
+            if (!item || !item.subjectId || !item.title) return -9999;
+            var expectedType = metadata.mediaType === "tv" ? 2 : 1;
+            var actual = normalizeTitle(item.title);
+            var target = normalizeTitle(metadata.title);
+            var score = 0;
+
+            if (item.subjectType === expectedType) score += 40;
+            else if (item.subjectType != null) score -= 30;
+
+            if (actual === target) score += 120;
+            else if (actual.replace(/\s/g, "") === target.replace(/\s/g, "")) score += 105;
+            else if (actual.indexOf(target) >= 0 || target.indexOf(actual) >= 0) score += 65;
+            else {
+              var targetWords = target.split(" ").filter(Boolean);
+              var actualWords = actual.split(" ").filter(Boolean);
+              var overlap = targetWords.filter(function (word) { return actualWords.indexOf(word) >= 0; }).length;
+              score += targetWords.length ? Math.round((overlap / targetWords.length) * 45) : 0;
+            }
+
+            if (metadata.year && item.releaseDate) {
+              var itemYear = parseInt(String(item.releaseDate).slice(0, 4), 10);
+              if (itemYear === metadata.year) score += 25;
+              else if (Math.abs(itemYear - metadata.year) === 1) score += 8;
+            }
+
+            return score;
+          }
+
+          function selectCandidate(items, metadata) {
+            var ranked = (items || []).map(function (item) {
+              return { item: item, score: scoreCandidate(item, metadata) };
+            }).sort(function (a, b) { return b.score - a.score; });
+            if (!ranked.length || ranked[0].score < 55) return null;
+            return ranked[0].item;
+          }
+
+          function searchMovieBox(metadata) {
+            var payload = JSON.stringify({
+              keyword: metadata.title,
+              page: 1,
+              perPage: 24,
+              subjectType: 0
+            });
+
+            return raceHosts(MOVIEBOX_HOSTS, function (host) {
+              return fetchJsonWithTimeout(host + "/wefeed-h5-bff/web/subject/search", {
+                method: "POST",
+                headers: copyHeaders({
+                  "Content-Type": "application/json",
+                  "Referer": host + "/"
+                }),
+                body: payload
+              }, 4000).then(function (json) {
+                return json && json.data && Array.isArray(json.data.items) ? json.data.items : [];
+              });
+            }, function (items) {
+              return !!selectCandidate(items, metadata);
+            }, 4300).then(function (winner) {
+              if (!winner) return null;
+              var candidate = selectCandidate(winner.value, metadata);
+              return candidate ? { host: winner.host, subject: candidate } : null;
+            });
+          }
+
+          function buildPlayReferer(host, subject) {
+            var detailPath = subject && subject.detailPath ? String(subject.detailPath) : "";
+            if (detailPath) {
+              return host + "/spa/videoPlayPage/movies/" + detailPath + "?id=" + encodeURIComponent(String(subject.subjectId)) + "&type=/movie/detail&lang=en";
+            }
+            return host + "/";
+          }
+
+          function fetchPlayableStreams(subject, seedHost, mediaType, season, episode) {
+            var hosts = [seedHost].concat(MOVIEBOX_HOSTS.filter(function (host) { return host !== seedHost; }));
+            var subjectId = String(subject.subjectId);
+            var se = mediaType === "tv" ? (parseInt(season, 10) || 1) : 0;
+            var ep = mediaType === "tv" ? (parseInt(episode, 10) || 1) : 0;
+
+            return raceHosts(hosts, function (host) {
+              var referer = buildPlayReferer(host, subject);
+              var url = host + "/wefeed-h5-bff/web/subject/play?subjectId=" + encodeURIComponent(subjectId) + "&se=" + se + "&ep=" + ep;
+              return fetchJsonWithTimeout(url, {
+                method: "GET",
+                headers: copyHeaders({ "Referer": referer })
+              }, 5200).then(function (json) {
+                var streams = json && json.data && Array.isArray(json.data.streams) ? json.data.streams : [];
+                return streams.filter(function (stream) { return stream && stream.url; });
+              });
+            }, function (streams) {
+              return Array.isArray(streams) && streams.length > 0;
+            }, 5500).then(function (winner) {
+              return winner ? { host: winner.host, streams: winner.value } : null;
+            });
+          }
+
+          function subtitleLanguage(caption) {
+            var value = ((caption && (caption.lanName || caption.lan)) || "").toLowerCase().replace(/_/g, "-").trim();
+            if (!value) return null;
+            if (/^(ms|msa|may)(-|\s|$)/.test(value) || /bahasa melayu|bahasa malaysia|malay|melayu|malaysian/.test(value)) return "Malay";
+            if (/^(en|eng)(-|\s|$)/.test(value) || /english/.test(value)) return "English";
+            if (/^(id|ind|in)(-|\s|$)/.test(value) || /bahasa indonesia|indonesian/.test(value)) return "Indonesian";
+            return null;
+          }
+
+          function fetchCaptions(subjectId, seedStream, winningHost) {
+            if (!seedStream || !seedStream.id || !seedStream.format) return Promise.resolve([]);
+            var hosts = [winningHost].concat(MOVIEBOX_HOSTS.filter(function (host) { return host !== winningHost; }));
+            var streamId = String(seedStream.id);
+            var format = String(seedStream.format);
+
+            return raceHosts(hosts, function (host) {
+              var url = host + "/wefeed-h5-bff/web/subject/caption?format=" + encodeURIComponent(format) + "&id=" + encodeURIComponent(streamId) + "&subjectId=" + encodeURIComponent(String(subjectId));
+              return fetchJsonWithTimeout(url, {
+                method: "GET",
+                headers: copyHeaders({ "Referer": host + "/" })
+              }, 2800).then(function (json) {
+                var captions = json && json.data && Array.isArray(json.data.captions) ? json.data.captions : [];
+                return captions.filter(function (caption) { return caption && caption.url && subtitleLanguage(caption); });
+              });
+            }, function (captions) {
+              return Array.isArray(captions) && captions.length > 0;
+            }, 3000).then(function (winner) {
+              var captions = winner ? winner.value : [];
+              var seen = {};
+              return captions.map(function (caption) {
+                var language = subtitleLanguage(caption);
+                return {
+                  url: caption.url,
+                  language: language,
+                  label: language
+                };
+              }).filter(function (caption) {
+                if (!caption.url || seen[caption.url]) return false;
+                seen[caption.url] = true;
+                return true;
+              });
+            });
+          }
+
+          function qualityValue(label) {
+            var text = String(label || "").toLowerCase();
+            if (/2160|4k/.test(text)) return 2160;
+            var match = text.match(/(1440|1080|720|576|540|480|360|240)/);
+            return match ? parseInt(match[1], 10) : 0;
+          }
+
+          function qualityLabel(stream) {
+            var raw = stream && stream.resolutions ? String(stream.resolutions) : "";
+            var value = qualityValue(raw);
+            if (value >= 2160) return "4K";
+            if (value) return value + "p";
+            return raw || "Auto";
+          }
+
+          function streamType(stream) {
+            var url = String((stream && stream.url) || "").toLowerCase();
+            var format = String((stream && stream.format) || "").toLowerCase();
+            if (url.indexOf(".m3u8") >= 0 || format.indexOf("hls") >= 0 || format.indexOf("m3u8") >= 0) return "m3u8";
+            if (url.indexOf(".mp4") >= 0 || format.indexOf("mp4") >= 0) return "mp4";
+            return "auto";
+          }
+
+          function uniqueStreams(streams) {
+            var seen = {};
+            return (streams || []).filter(function (stream) {
+              var url = stream && stream.url ? String(stream.url) : "";
+              if (!url || seen[url]) return false;
+              seen[url] = true;
+              return true;
+            });
+          }
+
+          function getStreams(tmdbId, mediaType, season, episode) {
+            var type = String(mediaType || "").toLowerCase() === "tv" ? "tv" : "movie";
+            console.log("[MovieBox] Resolving " + type + " TMDB " + tmdbId);
+
+            return resolveTmdbMetadata(tmdbId, type)
+              .then(function (metadata) {
+                return searchMovieBox(metadata);
+              })
+              .then(function (match) {
+                if (!match || !match.subject) return [];
+                return fetchPlayableStreams(match.subject, match.host, type, season, episode)
+                  .then(function (playResult) {
+                    if (!playResult || !playResult.streams || !playResult.streams.length) return [];
+                    var streams = uniqueStreams(playResult.streams).sort(function (a, b) {
+                      return qualityValue(b.resolutions) - qualityValue(a.resolutions);
+                    });
+                    var seed = streams.filter(function (stream) { return stream.id && stream.format; })[0] || null;
+                    return fetchCaptions(match.subject.subjectId, seed, playResult.host)
+                      .catch(function () { return []; })
+                      .then(function (subtitles) {
+                        return streams.map(function (stream) {
+                          var quality = qualityLabel(stream);
+                          return {
+                            name: MOVIEBOX_NAME,
+                            title: MOVIEBOX_NAME + " " + quality,
+                            url: stream.url,
+                            quality: quality,
+                            provider: "moviebox",
+                            type: streamType(stream),
+                            headers: {
+                              "User-Agent": MOVIEBOX_UA,
+                              "Referer": playResult.host + "/"
+                            },
+                            subtitles: subtitles
+                          };
+                        });
+                      });
+                  });
+              })
+              .catch(function (error) {
+                console.log("[MovieBox] Error: " + (error && error.message ? error.message : String(error)));
+                return [];
+              });
+          }
+
+          if (typeof module !== "undefined" && module.exports) {
+            module.exports = { getStreams: getStreams };
+          } else {
+            global.getStreams = getStreams;
+          }
+          VUEO_MOVIEBOX_JS
+
+          cat > scripts/test-moviebox.cjs <<'VUEO_MOVIEBOX_TEST'
+          const assert = require("node:assert");
+
+          class FakeResponse {
+            constructor(body, status) {
+              this.body = body;
+              this.status = status == null ? 200 : status;
+              this.ok = this.status >= 200 && this.status < 300;
+            }
+            json() {
+              return Promise.resolve(this.body);
+            }
+            text() {
+              return Promise.resolve(
+                typeof this.body === "string" ? this.body : JSON.stringify(this.body)
+              );
+            }
+          }
+
+          let lastPlayUrl = "";
+
+          global.fetch = function (url, options) {
+            if (url.indexOf("https://www.themoviedb.org/movie/550") === 0) {
+              return Promise.resolve(
+                new FakeResponse(
+                  '<html><head><meta property="og:title" content="Fight Club"></head></html>'
+                )
+              );
+            }
+
+            if (url.indexOf("https://www.themoviedb.org/tv/1396") === 0) {
+              return Promise.resolve(
+                new FakeResponse(
+                  '<html><head><meta property="og:title" content="Breaking Bad"></head></html>'
+                )
+              );
+            }
+
+            if (url.indexOf("/subject/search") >= 0) {
+              const body = String(options && options.body || "");
+              const isTv = body.indexOf("Breaking Bad") >= 0;
+
+              return Promise.resolve(
+                new FakeResponse({
+                  data: {
+                    items: [
+                      isTv
+                        ? {
+                            subjectId: "tv123",
+                            subjectType: 2,
+                            title: "Breaking Bad",
+                            releaseDate: "2008-01-20",
+                            detailPath: "breaking-bad"
+                          }
+                        : {
+                            subjectId: "mb123",
+                            subjectType: 1,
+                            title: "Fight Club",
+                            releaseDate: "1999-10-15",
+                            detailPath: "fight-club"
+                          }
+                    ]
+                  }
+                })
+              );
+            }
+
+            if (url.indexOf("/subject/play") >= 0) {
+              lastPlayUrl = url;
+              return Promise.resolve(
+                new FakeResponse({
+                  data: {
+                    streams: [
+                      {
+                        id: "s1",
+                        format: "HLS",
+                        url: "https://cdn.example/video-1080.m3u8",
+                        resolutions: "1080P"
+                      },
+                      {
+                        id: "s2",
+                        format: "MP4",
+                        url: "https://cdn.example/video-720.mp4",
+                        resolutions: "720P"
+                      }
+                    ]
+                  }
+                })
+              );
+            }
+
+            if (url.indexOf("/subject/caption") >= 0) {
+              return Promise.resolve(
+                new FakeResponse({
+                  data: {
+                    captions: [
+                      {
+                        lan: "en",
+                        lanName: "English",
+                        url: "https://cdn.example/en.vtt"
+                      },
+                      {
+                        lan: "ms",
+                        lanName: "Malay",
+                        url: "https://cdn.example/ms.vtt"
+                      },
+                      {
+                        lan: "id",
+                        lanName: "Indonesian",
+                        url: "https://cdn.example/id.vtt"
+                      },
+                      {
+                        lan: "fr",
+                        lanName: "French",
+                        url: "https://cdn.example/fr.vtt"
+                      }
+                    ]
+                  }
+                })
+              );
+            }
+
+            return Promise.resolve(new FakeResponse({}, 404));
+          };
+
+          const provider = require("../providers/moviebox.js");
+
+          function assertStreams(streams) {
+            assert.equal(streams.length, 2);
+            assert.equal(streams[0].name, "MovieBox");
+            assert.equal(streams[0].quality, "1080p");
+            assert.equal(streams[0].type, "m3u8");
+            assert.equal(streams[1].quality, "720p");
+            assert.equal(streams[1].type, "mp4");
+            assert.ok(streams[0].headers["User-Agent"]);
+            assert.ok(streams[0].headers.Referer.indexOf("https://moviebox.") === 0);
+            assert.deepEqual(
+              streams[0].subtitles.map(function (item) { return item.language; }).sort(),
+              ["English", "Indonesian", "Malay"]
+            );
+          }
+
+          provider.getStreams("550", "movie", null, null)
+            .then(function (streams) {
+              assertStreams(streams);
+              assert.ok(lastPlayUrl.indexOf("&se=0&ep=0") >= 0);
+              return provider.getStreams("1396", "tv", 2, 5);
+            })
+            .then(function (streams) {
+              assertStreams(streams);
+              assert.ok(lastPlayUrl.indexOf("&se=2&ep=5") >= 0);
+              console.log("MovieBox mock end-to-end tests passed.");
+            })
+            .catch(function (error) {
+              console.error(error);
+              process.exit(1);
+            });
+          VUEO_MOVIEBOX_TEST
+
+          cat > scripts/live-moviebox.cjs <<'VUEO_MOVIEBOX_LIVE'
+          const provider = require("../providers/moviebox.js");
+
+          const timeout = new Promise(function (_, reject) {
+            setTimeout(function () {
+              reject(new Error("Live MovieBox smoke test timed out"));
+            }, 30000);
+          });
+
+          Promise.race([
+            provider.getStreams("550", "movie", null, null),
+            timeout
+          ]).then(function (streams) {
+            if (!Array.isArray(streams) || streams.length === 0) {
+              console.error("Live smoke test returned no streams.");
+              process.exit(2);
+            }
+
+            const first = streams[0];
+            console.log("Live MovieBox streams:", streams.length);
+            console.log(
+              JSON.stringify(
+                {
+                  name: first.name,
+                  quality: first.quality,
+                  type: first.type,
+                  hasUrl: !!first.url,
+                  hasHeaders: !!first.headers
+                },
+                null,
+                2
+              )
+            );
+          }).catch(function (error) {
+            console.error(error && error.stack ? error.stack : error);
+            process.exit(1);
+          });
+          VUEO_MOVIEBOX_LIVE
+
+          cat > src/moviebox/README.md <<'VUEO_MOVIEBOX_README'
+          # MovieBox VUEO Provider
+
+          Status: functional v1.
+
+          This provider is ported from the MovieBox implementation in
+          `Luckez12/Cloudstream-Repo`.
+
+          Runtime flow:
+
+          1. Resolve the TMDB numeric ID to a title through the public TMDB media page.
+          2. Race MovieBox H5 mirrors for an exact or high-confidence subject match.
+          3. Race playback endpoints for direct stream URLs.
+          4. Return HLS or MP4 streams with playback headers.
+          5. Attach English, Malay and Indonesian captions when the MovieBox caption
+             endpoint supplies them.
+
+          The distributed runtime file is `providers/moviebox.js`.
+
+          The implementation intentionally uses Promise chains and Web APIs only so it
+          can run in the VUEO JavaScript provider runtime.
+          VUEO_MOVIEBOX_README
+
+      - name: Enable MovieBox in manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          from pathlib import Path
+          import json
+          import re
+
+          path = Path("manifest.json")
+          manifest = json.loads(path.read_text(encoding="utf-8"))
+
+          def version_tuple(value):
+              parts = re.findall(r"\d+", str(value or ""))
+              return tuple(int(x) for x in (parts + ["0", "0", "0"])[:3])
+
+          if isinstance(manifest.get("scrapers"), list):
+              key = "scrapers"
+          elif isinstance(manifest.get("providers"), list):
+              key = "providers"
+          else:
+              key = "scrapers"
+              manifest[key] = []
+
+          items = manifest[key]
+          moviebox = next(
+              (item for item in items if str(item.get("id", "")).lower() == "moviebox"),
+              None,
+          )
+
+          if moviebox is None:
+              moviebox = {"id": "moviebox"}
+              items.append(moviebox)
+
+          moviebox.update(
+              {
+                  "id": "moviebox",
+                  "name": "MovieBox",
+                  "description": "Movies and TV provider ported for the VUEO JavaScript runtime.",
+                  "version": "1.0.0",
+                  "author": "Luckez12",
+                  "supportedTypes": ["movie", "tv"],
+                  "filename": "providers/moviebox.js",
+                  "enabled": True,
+                  "contentLanguage": ["en", "id", "ms"],
+                  "supportsExternalPlayer": True,
+              }
+          )
+
+          if version_tuple(manifest.get("version")) < version_tuple("0.2.0"):
+              manifest["version"] = "0.2.0"
+
+          path.write_text(
+              json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+              encoding="utf-8",
+          )
+
+          status = Path("PORTING_STATUS.md")
+          if status.exists():
+              text = status.read_text(encoding="utf-8")
+              replacement = "| MovieBox | `moviebox` | Functional v1 | Enabled |"
+              pattern = re.compile(r"^\|\s*MovieBox\s*\|.*$", re.MULTILINE)
+              if pattern.search(text):
+                  text = pattern.sub(replacement, text, count=1)
+              else:
+                  text += "\n" + replacement + "\n"
+              status.write_text(text, encoding="utf-8")
+
+          print("MovieBox enabled in", key)
+          PY
+
+      - name: Static validation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          node --check providers/moviebox.js
+          node --check scripts/test-moviebox.cjs
+          node --check scripts/live-moviebox.cjs
+          python3 -m json.tool manifest.json >/dev/null
+
+          if grep -Eq '\basync\b|\bawait\b' providers/moviebox.js; then
+            echo "::error::MovieBox runtime must remain Promise based for Hermes compatibility."
+            exit 1
+          fi
+
+          grep -Fq 'function getStreams(tmdbId, mediaType, season, episode)'             providers/moviebox.js
+
+          python3 <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path("manifest.json").read_text())
+          items = manifest.get("scrapers") or manifest.get("providers") or []
+          item = next((x for x in items if x.get("id") == "moviebox"), None)
+
+          assert item is not None, "MovieBox missing from manifest"
+          assert item.get("enabled") is True, "MovieBox is not enabled"
+          assert item.get("filename") == "providers/moviebox.js"
+          assert set(item.get("supportedTypes", [])) == {"movie", "tv"}
+
+          print("Manifest validation passed.")
+          PY
+
+      - name: MovieBox mock end-to-end test
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/test-moviebox.cjs
+
+      - name: Live MovieBox smoke test
+        id: live
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/live-moviebox.cjs
+
+      - name: Commit and push MovieBox v1
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email             "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add             manifest.json             providers/moviebox.js             scripts/test-moviebox.cjs             scripts/live-moviebox.cjs             src/moviebox/README.md
+
+          if [ -f PORTING_STATUS.md ]; then
+            git add PORTING_STATUS.md
+          fi
+
+          git commit -m "Port MovieBox provider v1"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Summary
+        if: always()
+        shell: bash
+        env:
+          LIVE_OUTCOME: ${{ steps.live.outcome }}
+        run: |
+          {
+            echo "## MovieBox v1"
+            echo
+            echo "- Provider: \`providers/moviebox.js\`"
+            echo "- Manifest: enabled"
+            echo "- Types: movie, tv"
+            echo "- Stream formats: HLS, MP4"
+            echo "- Captions: English, Malay, Indonesian when available"
+            echo "- Deterministic mock test: required"
+            echo "- Live smoke test outcome: \`${LIVE_OUTCOME:-not-run}\`"
+            echo
+            echo "The live smoke test is diagnostic only because external mirrors can be temporarily unavailable."
+          } >> "$GITHUB_STEP_SUMMARY"

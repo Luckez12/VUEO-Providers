@@ -1,6 +1,6 @@
 {
   "name": "VUEO Providers",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "scrapers": [
     {
       "id": "4khdhub",
@@ -56,15 +56,15 @@
     {
       "id": "moviebox",
       "name": "MovieBox",
-      "description": "VUEO port target for the Luckez12 CloudStream MovieBox provider.",
-      "version": "0.1.0",
+      "description": "Movies and TV provider ported for the VUEO JavaScript runtime.",
+      "version": "1.0.0",
       "author": "Luckez12",
       "supportedTypes": [
         "movie",
         "tv"
       ],
       "filename": "providers/moviebox.js",
-      "enabled": false,
+      "enabled": true,
       "contentLanguage": [
         "en",
         "id",

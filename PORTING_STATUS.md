@@ -5,7 +5,7 @@
 | 4KHDHub | `4khdhub` | Pending port | Disabled |
 | KissKH | `kisskh` | Pending port | Disabled |
 | MSM21 | `msm21` | Pending port | Disabled |
-| MovieBox | `moviebox` | Pending port | Disabled |
+| MovieBox | `moviebox` | Functional v1 | Enabled |
 | OneTouchTV | `onetouchtv` | Pending port | Disabled |
 | OppaDrama | `oppadrama` | Pending port | Disabled |
 | PencuriMovie | `pencurimovie` | Pending port | Disabled |

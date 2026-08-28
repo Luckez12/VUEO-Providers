@@ -1,6 +1,6 @@
 {
   "name": "VUEO Providers",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "scrapers": [
     {
       "id": "4khdhub",
@@ -23,18 +23,23 @@
       "id": "kisskh",
       "name": "KissKH",
       "description": "VUEO port target for the Luckez12 CloudStream KissKH provider.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": "Luckez12",
       "supportedTypes": [
         "movie",
         "tv"
       ],
       "filename": "providers/kisskh.js",
-      "enabled": false,
+      "enabled": true,
       "contentLanguage": [
         "en"
       ],
-      "supportsExternalPlayer": true
+      "supportsExternalPlayer": true,
+      "formats": [
+        "m3u8",
+        "mp4",
+        "mpd"
+      ]
     },
     {
       "id": "msm21",
